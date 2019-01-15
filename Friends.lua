@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-15 02:16]
+     Last Modified       :     [2019-01-15 10:21]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -61,7 +61,7 @@ end
 -- @return  false   Error taking/saving snapshot
 function AF.Friends_mt:takeSnapshot( )
     local numServerFriends = GetNumFriends( )
-    debug:debug( "Snapshotting %d server friends", numServerFriends )
+    debug:info( "Snapshotting %d server friends", numServerFriends )
     if( numServerFriends == 0 ) then
         return true
     end
@@ -92,9 +92,10 @@ function AF.Friends_mt:restoreSnapshot( )
 
     for currentFriend, v in pairs( self.tFriends ) do
         if( self:isPlayerInFriendsList( currentFriend ) ) then
-            debug:debug( "Found %s in Friends List", currentFriend )
+            debug:info( "%s already in friend-list", currentFriend )
         else
-            debug:debug( "%s not in Friends List.", currentFriend )
+            C_FriendList.AddFriend( currentFriend )
+            debug:warn( "%s added to friend-list.", currentFriend )
         end
     end
 end
@@ -110,22 +111,22 @@ end
 -- @return  false       Error stashing player
 function AF.Friends_mt:stashPlayerInSnapshot( playerName )
     if( playerName == "" ) then                             -- Don't stash if name is empty
-        debug:debug( "Can't stash an empty player name." )
+        debug:warn( "Can't stash an empty player name." )
         return false
     elseif( playerName == nil ) then                        -- Don't stash if name is nil
-        debug:debug( "Can't stash a nil player name." )
+        debug:warn( "Can't stash a nil player name." )
         return false
     elseif ( string.match( playerName, "-" ) == nil ) then  -- don't stash if not realm-qualified
-        debug:debug( "Can't stash player %s without a realm.", playerName )
+        debug:warn( "Can't stash player %s without a realm.", playerName )
         return false
     end
 
     if( self:isPlayerInSnapshot( playerName ) ) then    -- Do nothing if player already stashed
-        debug:debug( "Player %s already stashed - doing nothing.", playerName )
+        debug:info( "Player %s already stashed - doing nothing.", playerName )
     else
         self.tFriends[playerName] = "stashed"           -- Go ahead and stash player
         self.numFriends = self.numFriends + 1
-        debug:debug( "Friend %s now stashed as entry #%d.", playerName, self.numFriends )
+        debug:info( "Stashed %s info entry #%d.", playerName, self.numFriends )
     end
 
     return true
@@ -141,13 +142,13 @@ end
 -- @return  false       Friend not currently stashed
 function AF.Friends_mt:isPlayerInSnapshot( playerName )
     if( playerName == "" ) then
-        debug:debug( "Empty Player name - can't search within snapshot." )
+        debug:warn( "Empty Player name - can't search within snapshot." )
         return false
     elseif( playerName == nil ) then
-        debug:debug( "Nil player name - can't search within snapshot." )
+        debug:warn( "Nil player name - can't search within snapshot." )
         return false
     elseif ( string.match( playerName, "-" ) == nil ) then
-        debug:debug( "Player %s not realm-qualified - can't search within snapshot.", playerName )
+        debug:warn( "Player %s not realm-qualified - can't search within snapshot.", playerName )
         return false
     end
 
@@ -163,10 +164,10 @@ end
 -- @return  false       Friend not currently stashed
 function AF.Friends_mt:isPlayerInFriendsList( playerName )
     if( playerName == "" ) then
-        debug:debug( "Empty Player name - can't search within friends." )
+        debug:warn( "Empty Player name - can't search within friends." )
         return false
     elseif( playerName == nil ) then
-        debug:debug( "Nil player name - can't search within friends." )
+        debug:warn( "Nil player name - can't search within friends." )
         return false
     end
 
@@ -178,10 +179,10 @@ function AF.Friends_mt:isPlayerInFriendsList( playerName )
     debug:debug( "Checking if %s is in your Friends List...", playerName )
     local friendReturn = C_FriendList.GetFriendInfo( playerName );
     if( friendReturn ~= nil ) then
-        debug:debug( "%s found.", playerName )
+        debug:debug( "%s found in friends-list.", playerName )
         return true
     else
-        debug:debug( "%s not found.", playerName )
+        debug:debug( "%s not found in friends-list.", playerName )
         return false
     end
 end
@@ -211,7 +212,7 @@ end
 -- @return  nil         Realm is present but is neither local nor connected.
 function AF.Friends_mt:addRealmToName( friendName )
     if( friendName == nil or friendName == "" ) then
-        debug:debug( "Friend empty or nil - unable to add realm." )
+        debug:warn( "Friend empty or nil - unable to add realm." )
         return nil
     end
 
@@ -258,12 +259,12 @@ end
 -- @return nil          Specified name is nil or empty
 function AF.Friends_mt:isFriendRealmConnected( friendName )
     if( friendName == nil or friendName == "" ) then
-        debug:debug( "Friend empty or nil - unable to check if connected." )
+        debug:warn( "Friend empty or nil - unable to check if connected." )
         return nil
     end
 
     if( string.match( friendName, "-" ) == nil ) then
-        debug:debug( "friend %s lacks realm - considered local and connected.", friendName )
+        debug:info( "friend %s lacks realm - considered local and connected.", friendName )
         return true
     end
 
@@ -271,20 +272,20 @@ function AF.Friends_mt:isFriendRealmConnected( friendName )
     local friendRealm = string.lower( string.sub( friendName, p+1 ) ) -- Extact everything after delimiter as the realm
 
     if( friendRealm == self.Realm ) then
-        debug:debug( "Friend %s's realm equals the current one - considered connected.", friendRealm )
+        debug:info( "Friend %s's realm equals the current one - considered connected.", friendRealm )
         return true
     end
 
     local i = 1
     while( self.connectedRealms[i] ~= nil ) do
         if( string.lower( self.connectedRealms[i] ) == friendRealm  ) then
-            debug:debug( "Friend %s's realm is connected.", friendRealm )
+            debug:info( "Friend %s's realm is connected.", friendRealm )
             return true
         end
         i = i + 1
     end
 
-    debug:debug( "Friend %s's realm is not connected.", friendRealm )
+    debug:info( "Friend %s's realm is not connected.", friendRealm )
     return false
 end
 
@@ -315,11 +316,11 @@ end
 -- @return  true    Successfully loaded global data into class data
 -- @return  false   No SavedVariable data found - nothing done.
 function AF.Friends_mt:loadDataFromGlobal( )
-    debug:debug( "Loading snapshot from global SavedVariable" )
+    debug:info( "Loading snapshot from global SavedVariable" )
 
     -- Done if no SavedVariable data exists
-    if( SocialSnapshotFriendsData == nil ) then
-        debug:debug( "No SavedVariable container table found - doing nothing." )
+    if( AllFriendsData == nil ) then
+        debug:info( "No SavedVariable container table found - doing nothing." )
         return false
     end
 
@@ -328,18 +329,18 @@ function AF.Friends_mt:loadDataFromGlobal( )
     local gIndex = 1
     local rIndex = 1
     local groupArray = {}
-    while( SocialSnapshotFriendsData.RealmGroups[gIndex] ~= nil ) do
-        groupArray = SocialSnapshotFriendsData.RealmGroups[gIndex]
+    while( AllFriendsData.RealmGroups[gIndex] ~= nil ) do
+        groupArray = AllFriendsData.RealmGroups[gIndex]
         rIndex = 1
         while( groupArray.realmList[rIndex] ~= nil ) do
             if( groupArray.realmList[rIndex] == self.Realm ) then
                 if( groupArray.tFriends ~= nil and groupArray.numFriends ~= nil ) then
                     self.tFriends   = groupArray.tFriends
                     self.numFriends = groupArray.tFriends
-                    debug:debug( "Snapshot loaded from realm group #%d", rIndex )
+                    debug:info( "Snapshot loaded from realm group #%d", rIndex )
                     return true
                 else
-                    debug:debug( "SavedVariable exists but missing mandatory data - doing nothing." )
+                    debug:info( "SavedVariable exists but missing mandatory data - doing nothing." )
                     return false
                 end
             end
@@ -347,7 +348,7 @@ function AF.Friends_mt:loadDataFromGlobal( )
         end
         gIndex = gIndex + 1
     end
-    debug:debug( "SavedVariable exists but no info on current realm found - doing nothing." )
+    debug:info( "SavedVariable exists but no info on current realm found - doing nothing." )
     return false
 end
 
@@ -359,26 +360,26 @@ end
 -- local data and places it into the addon's globals so it can be serialized.
 -- @return  true    <always>
 function AF.Friends_mt:saveDataToGlobal( )
-    debug:debug( "Saving snapshot to global SavedVariable" )
+    debug:info( "Saving snapshot to global SavedVariable" )
     local gIndex = 1
     local rIndex = 1
     local groupArray = {}
 
-    SocialSnapshotFriendsData = SocialSnapshotFriendsData or {}
+    AllFriendsData = AllFriendsData or {}
 
-    if( SocialSnapshotFriendsData.RealmGroups ~= nil ) then
+    if( AllFriendsData.RealmGroups ~= nil ) then
         -- Find an existing connected realm group containing the current realm if
         -- one already exists in SavedVariable.  If one is found then update it
         -- with current data.
-        while( SocialSnapshotFriendsData.RealmGroups[gIndex] ~= nil ) do
-            groupArray = SocialSnapshotFriendsData.RealmGroups[gIndex]
+        while( AllFriendsData.RealmGroups[gIndex] ~= nil ) do
+            groupArray = AllFriendsData.RealmGroups[gIndex]
             rIndex = 1
             while( groupArray.realmList[rIndex] ~= nil ) do
                 if( groupArray.realmList[rIndex] == self.Realm ) then
                     groupArray.realmList  = self.connectedRealms
                     groupArray.tFriends   = self.tFriends
                     groupArray.numFriends = self.numFriends
-                    debug:debug( "Snapshot saved into existing realm group #%d", rIndex )
+                    debug:info( "Snapshot saved into existing realm group #%d", rIndex )
                     return true
                 end
                 rIndex = rIndex + 1
@@ -386,18 +387,18 @@ function AF.Friends_mt:saveDataToGlobal( )
             gIndex = gIndex + 1
         end
     else
-        SocialSnapshotFriendsData.RealmGroups = {}
+        AllFriendsData.RealmGroups = {}
     end
 
     -- No existing realm group was found that contains the current realm.  AT
-    -- this point gIndex points to an empty slot in SocialSnapshotFriendsData.RealmGroups
+    -- this point gIndex points to an empty slot in AllFriendsData.RealmGroups
     -- so just go ahead and populate it with current data.
-    SocialSnapshotFriendsData.RealmGroups[gIndex] = {}
-    groupArray = SocialSnapshotFriendsData.RealmGroups[gIndex]
+    AllFriendsData.RealmGroups[gIndex] = {}
+    groupArray = AllFriendsData.RealmGroups[gIndex]
     groupArray.realmList  = self.connectedRealms
     groupArray.tFriends   = self.tFriends
     groupArray.numFriends = self.numFriends
-    debug:debug( "Snapshot saved into existing realm group #%d", rIndex )
+    debug:info( "Snapshot saved into existing realm group #%d", rIndex )
     return true
 end
 

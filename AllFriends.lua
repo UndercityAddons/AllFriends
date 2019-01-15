@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-15 01:45]
+     Last Modified       :     [2019-01-15 09:47]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -53,18 +53,42 @@ end
 -- See the various frame:RegisterEvent( ... ) statements below for triggering info
 local function EventHandler( self, event, ... )
 
-    debug:debug( "Event %s passed to EventHandler().", event )
+    debug:info( "Event %s passed to EventHandler().", event )
 
     -- Fires: Immediately before PLAYER_ENTERING_WORLD on login and UI reload,
     --        but NOT when entering/leaving instances.
-        if( event == "PLAYER_LOGIN" ) then
+    if( event == "PLAYER_LOGIN" ) then
         setupSlashCommands( )
---        loadClassDataFromGlobals( )
+        loadClassDataFromGlobals( )
         debug:always("v%s initialized.", AF.addonVersion )
-    elseif( event == "PLAYER_LOGOUT" ) then
-    elseif( event == "FRIENDLIST_UPDATE" ) then
+        if( friends:restoreSnapshot( ) ) then
+            debug:info( "Friends-list synchronized." )
         else
+            debug:warn( "Error syncing friends-list to match snapshot." )
         end
+
+    -- Fires: Whenever the player logs out or the UI is reloaded, just-before
+    --        SavedVariables are saved.  Fires after PLAYER_LEAVING_WORLD.
+    elseif( event == "PLAYER_LOGOUT" ) then
+        saveClassDataToGlobals( )
+
+    -- Fires whenever: - You login
+    --                 - Opening friends window (twice?)
+    --                 - Switching from ignore list to friends list
+    --                 - Switching from guild/raid/who tab back to friends tab (twice?)
+    --                 - Adding/removing friends, and
+    --                 - Friends come online or go offline
+
+    elseif( event == "FRIENDLIST_UPDATE" ) then
+        if( friends:takeSnapshot( ) ) then
+            debug:info( "Took snapshot of friends-list - contains %d friends.", friends:count( ) )
+        else
+            debug:warn( "Error taking snapshot!" )
+        end
+    -- Catchall for any registered but unhandled events
+    else
+        debug:warn( "Unexpected event %s passed to EventHandler() - ignored.", event )
+    end
 end
 
 
@@ -87,7 +111,7 @@ end
 
 -- Set up debugging as required
 debug = AF.Debugging_mt:new( )
-debug:setLevel( DEBUG )
+debug:setLevel( INFO )
 
 friends = AF.Friends_mt:new( )          -- Create a new empty, Friends object
 
