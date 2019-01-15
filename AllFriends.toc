@@ -1,0 +1,11 @@
+## Interface: 80100
+## Title: AllFriends
+## Author: tubiakou
+## Notes: WoW addon that automatically synchronizes your friends-lists across multiple characters
+## OptionalDeps:
+## Dependencies:
+## SavedVariables: AllFriendsData
+
+Debugging.lua
+Friends.lua
+AllFriends.lua
