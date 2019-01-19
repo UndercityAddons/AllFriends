@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-15 10:21]
+     Last Modified       :     [2019-01-19 00:55]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -34,6 +34,7 @@ function AF.Friends_mt:new( )
     self.numFriends         = 0
     self.Realm              = ""
     self.connectedRealms    = {}
+    self.snapshotRestored   = false
     ----------------------------------------------------------------------------
 
 
@@ -41,7 +42,9 @@ function AF.Friends_mt:new( )
     ----------------------------------------------------------------------------
     self.Realm              = string.lower( string.gsub( GetRealmName( ), "%s", "" ) )
     self.connectedRealms    = GetAutoCompleteRealms( self.ConnectedRealms ) -- This includes connected realms
-    table.insert( self.connectedRealms, self.Realm )                        -- as well as the current realm
+    if( self.connectedRealms[1] == nil ) then
+        table.insert( self.connectedRealms, self.Realm )                        -- as well as the current realm
+    end
 
     return friendsObject
 end
@@ -57,26 +60,51 @@ end
 
 --- Class public-method "takeSnapshot"
 -- Takes a snapshot of the current friend's list and saves it in an object
--- @return  true    Snapshot successfully taken/saved
--- @return  false   Error taking/saving snapshot
 function AF.Friends_mt:takeSnapshot( )
-    local numServerFriends = GetNumFriends( )
-    debug:info( "Snapshotting %d server friends", numServerFriends )
+    local numServerFriends = C_FriendList.GetNumFriends( )
+
+    if( self.snapshotRestored == false ) then
+        debug:debug( "Skipping taking a snapshot - Addon initialization appears unfinished." )
+    else
+        debug:info( "Snapshotting %d server friends", numServerFriends )
+
+        self:wipeSnapshot( )
+
+        local i, currentFriend, discard     -- For every current friend, stash into snapshot
+        for i = 1, numServerFriends, 1 do
+            local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
+            currentFriend = self:addRealmToName( friendInfo.name ); -- qualify name with current realm if not already qualified
+            debug:debug( "friendInfo: %s", currentFriend )
+            self:stashPlayerInSnapshot( currentFriend )
+        end
+    end
+    return
+end
+
+
+--- class method "isFriendListAvailable"
+-- It appears that when starting the game, the Friend List may not yet be
+-- available by the time events such as PLAYER_LOGIN and PLAYER_ENTERING_WORLD
+-- fire.  This method attempts to detect that by requesting a friend-count
+-- (which apparently IS available), and then getting the 1st friend (if you
+-- have any).
+-- @return:  true    Friend-count = 0, or 1st friend successfully retrieved.
+-- @return:  false   Friend-count > 0 and 1st friend failed to be retrieved.
+function AF.Friends_mt:isFriendListAvailable( )
+    local numServerFriends = C_FriendList.GetNumFriends( )
     if( numServerFriends == 0 ) then
+        debug:debug( "Zero server friends." )
         return true
     end
 
-    -- continue if one or more friends exist on the server
-    self:wipeSnapshot( )
-    local i, currentFriend, discard
-    for i = 1, numServerFriends, 1 do
-        local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
-        currentFriend = self:addRealmToName( friendInfo.name ); -- qualify name with current realm if not already qualified
-        debug:debug( "friendInfo: %s", currentFriend )
-        self:stashPlayerInSnapshot( currentFriend )
+    local friendInfo = C_FriendList.GetFriendInfoByIndex( 1 )
+    if( friendInfo ~= nil ) then
+        debug:debug( "Server friend-list available." )
+        return true
     end
 
-    return true
+    debug:debug( "Server friend-list appears unavailable." )
+    return false
 end
 
 
@@ -85,19 +113,59 @@ end
 --    1. Players in the snapshot that are missing from the friends list will be
 --       added if they are on the current or any connected realm.
 --    2. Players in the friends list but not in the snapshot will be removed.
--- @return  true    Snapshot successfully taken/saved
--- @return  false   Error taking/saving snapshot
 function AF.Friends_mt:restoreSnapshot( )
-    local numServerFriends = GetNumFriends( )
+    local numServerFriends
+    local i
+    local currentFriend
 
+    local function tryFriendListAvailable( a, c )
+        if( a == 0 ) then
+            debug:info( "No more loop tries" )
+            return false
+        else
+            if( self:isFriendListAvailable( ) ) then
+                debug:info( "Loop ending - available" )
+                return true
+            else
+                debug:info( "Loop recursing - %d tries left.", a - 1 )
+                return C_Timer.After( c, tryFriendListAvailable( a - 1, c * 2 ) )
+            end
+        end
+    end
+
+    if( tryFriendListAvailable( 10, 5 ) ) then
+        debug:info( "List available - continuing with restore." )
+    else
+        debug:info( "List unavailable - giving up." )
+        return
+    end
+
+    -- Go through snapshot and add all missing players within it into the friends list
+    numServerFriends = C_FriendList.GetNumFriends( )
     for currentFriend, v in pairs( self.tFriends ) do
-        if( self:isPlayerInFriendsList( currentFriend ) ) then
+        if( self:isPlayerInFriendList( currentFriend ) ) then
             debug:info( "%s already in friend-list", currentFriend )
         else
             C_FriendList.AddFriend( currentFriend )
             debug:warn( "%s added to friend-list.", currentFriend )
         end
     end
+
+    -- Go through friends list and remove all players that aren't also within the snapshot
+    numServerFriends = C_FriendList.GetNumFriends( )
+    for i = 1, numServerFriends, 1 do
+        local friendInfo = C_FriendList.GetFriendInfoByIndex( i)
+        currentFriend = self:addRealmToName( friendInfo.name ); -- qualify name with current realm if not already qualified
+        if( self:isPlayerInSnapshot( currentFriend )  ) then
+            debug:info( "%s already in both friends-list and snapshot.",currentFriend )
+        else
+            self:removePlayerFromFriendList( currentFriend )
+            debug:warn( "%s in friends-list but not snapshot - removed.", currentFriend )
+        end
+    end
+
+    self.snapshotRestored = true    -- Flag that initial restoration has completed
+    return
 end
 
 
@@ -133,6 +201,30 @@ function AF.Friends_mt:stashPlayerInSnapshot( playerName )
 end
 
 
+--- Class public-method "removePlayerFromFriendList"
+-- Removes the specified player from the current friends list.  Nothing is
+-- done if the player is already not in the list.  Player names can be in any
+-- combination of upper/lower case, and may optionally be realm-qualified (
+-- non realm-qualified names are considered on the local realm).
+-- @param   playerName  Name of friend to be removed from the friends list
+-- @return  true        Player removed from friends list, or already not present
+-- @return  false       Problem with player name (e.g. nil, empty)
+function AF.Friends_mt:removePlayerFromFriendList( playerName )
+    if( playerName == nil or playerName == "" ) then
+        debug:warn( "problem with player name - not removing from friends-list." )
+        return false
+    end
+
+    -- Strip local realm-qualifiers (friends list requires this), and then
+    -- remove the player from the friends list if present
+    playerName = self:stripRealmFromNameIfLocal( playerName )
+    if( self:isPlayerInFriendList( playerName ) ) then
+        C_FriendList.RemoveFriend( playerName )
+    end
+    return true
+end
+
+
 --- Class public-method "isPlayerInSnapshot"
 -- Takes a specified friend and indicates whether or not they have been stashed
 -- in the current snapshot.  Note that the specified name should already be
@@ -156,13 +248,13 @@ function AF.Friends_mt:isPlayerInSnapshot( playerName )
 end
 
 
---- Class public-method "isPlayerInFriendsList"
+--- Class public-method "isPlayerInFriendList"
 -- Takes a specified player name and indicates whether or not they are present
 -- in the current friends list. Player names without realm-qualifiers are local.
 -- @param   friendName  Name of friend to search within the current snapshot.
--- @return  true        Friend is currently stashed
--- @return  false       Friend not currently stashed
-function AF.Friends_mt:isPlayerInFriendsList( playerName )
+-- @return  true        Friend is in friends list
+-- @return  false       Friend not in friends list
+function AF.Friends_mt:isPlayerInFriendList( playerName )
     if( playerName == "" ) then
         debug:warn( "Empty Player name - can't search within friends." )
         return false
@@ -172,12 +264,10 @@ function AF.Friends_mt:isPlayerInFriendsList( playerName )
     end
 
     -- Strip the realm-qualifier if it exists and refers to the local realm.
-    if( string.match( playerName, "-" ) ) then
-        playerName = self:stripRealmFromNameIfLocal( playerName )
-    end
+    playerName = self:stripRealmFromNameIfLocal( playerName )
 
     debug:debug( "Checking if %s is in your Friends List...", playerName )
-    local friendReturn = C_FriendList.GetFriendInfo( playerName );
+    local friendReturn = C_FriendList.GetFriendInfo( playerName )
     if( friendReturn ~= nil ) then
         debug:debug( "%s found in friends-list.", playerName )
         return true
@@ -201,30 +291,30 @@ end
 
 
 --- Class method "addRealmToName
--- Takes a Friend name and appends the current realm's name to it if a realm
+-- Takes a player name and appends the current realm's name to it if a realm
 -- is not already present.  If a realm is already present then validate that
 -- it is either the current or a connected realm, and leave things as-is.
 -- Fails if a realm is present but invalid (e.g. not local and not connected).
 -- Also fails if the name is nil or empty.
--- @param   friendName  Name of friend to operate on
+-- @param   playername  Name of player to operate on
 -- @return              Name with the realm appended (or already present and connected)
 -- @return  nil         Name is nil or empty
 -- @return  nil         Realm is present but is neither local nor connected.
-function AF.Friends_mt:addRealmToName( friendName )
-    if( friendName == nil or friendName == "" ) then
-        debug:warn( "Friend empty or nil - unable to add realm." )
+function AF.Friends_mt:addRealmToName( playerName )
+    if( playerName == nil or playerName == "" ) then
+        debug:warn( "playerName empty or nil - unable to add realm." )
         return nil
     end
 
-    local friendNameWithRealm
-    if ( string.match( friendName, "-" ) == nil ) then
-        friendNameWithRealm = friendName .. "-" .. self.Realm
-        debug:debug( "%s lacked realm - now  %s.", friendName, friendNameWithRealm )
+    local playerNameWithRealm
+    if ( string.match( playerName, "-" ) == nil ) then
+        playerNameWithRealm = playerName .. "-" .. self.Realm
+        debug:debug( "%s lacked realm - now  %s.", playerName, playerNameWithRealm )
     else
-        friendNameWithRealm = friendName
-        debug:debug( "%s already contains realm.", friendName )
+        playerNameWithRealm = playerName
+        debug:debug( "%s already contains realm.", playerName )
     end
-    return friendNameWithRealm
+    return playerNameWithRealm
 end
 
 
@@ -333,7 +423,7 @@ function AF.Friends_mt:loadDataFromGlobal( )
         groupArray = AllFriendsData.RealmGroups[gIndex]
         rIndex = 1
         while( groupArray.realmList[rIndex] ~= nil ) do
-            if( groupArray.realmList[rIndex] == self.Realm ) then
+            if( string.lower( groupArray.realmList[rIndex] ) == string.lower( self.Realm ) ) then
                 if( groupArray.tFriends ~= nil and groupArray.numFriends ~= nil ) then
                     self.tFriends   = groupArray.tFriends
                     self.numFriends = groupArray.tFriends
@@ -348,7 +438,7 @@ function AF.Friends_mt:loadDataFromGlobal( )
         end
         gIndex = gIndex + 1
     end
-    debug:info( "SavedVariable exists but no info on current realm found - doing nothing." )
+    debug:info( "SavedVariable exists but no info on current realm [%s] found - doing nothing.", self.Realm )
     return false
 end
 
@@ -364,6 +454,7 @@ function AF.Friends_mt:saveDataToGlobal( )
     local gIndex = 1
     local rIndex = 1
     local groupArray = {}
+    local curRealm = string.lower( self.Realm )
 
     AllFriendsData = AllFriendsData or {}
 
@@ -375,7 +466,7 @@ function AF.Friends_mt:saveDataToGlobal( )
             groupArray = AllFriendsData.RealmGroups[gIndex]
             rIndex = 1
             while( groupArray.realmList[rIndex] ~= nil ) do
-                if( groupArray.realmList[rIndex] == self.Realm ) then
+                if( string.lower( groupArray.realmList[rIndex] ) == curRealm ) then
                     groupArray.realmList  = self.connectedRealms
                     groupArray.tFriends   = self.tFriends
                     groupArray.numFriends = self.numFriends
