@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-19 00:09]
+     Last Modified       :     [2019-01-20 01:09]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -58,9 +58,8 @@ local function EventHandler( self, event, ... )
     -- Fires: Immediately before PLAYER_ENTERING_WORLD on login and UI reload,
     --        but NOT when entering/leaving instances.
     if( event == "PLAYER_LOGIN" ) then
---    if( event == "PLAYER_ENTERING_WORLD" ) then
         setupSlashCommands( )
-        loadClassDataFromGlobals( )
+        friends:loadDataFromGlobal( )
         debug:always("v%s initialized.", AF.addonVersion )
         friends:restoreSnapshot( )
         debug:info( "Friends-list synchronized." )
@@ -68,12 +67,7 @@ local function EventHandler( self, event, ... )
     -- Fires: Whenever the player logs out or the UI is reloaded, just-before
     --        SavedVariables are saved.  Fires after PLAYER_LEAVING_WORLD.
     elseif( event == "PLAYER_LOGOUT" ) then
---        if( friends:takeSnapshot( ) ) then
---            debug:info( "Took snapshot of friends-list - contains %d friends.", friends:count( ) )
---        else
---            debug:warn( "Error taking snapshot!" )
---        end
-        saveClassDataToGlobals( )
+        friends:saveDataToGlobal( )
 
     -- Fires whenever: - You login
     --                 - Opening friends window (twice?)
@@ -83,7 +77,7 @@ local function EventHandler( self, event, ... )
     --                 - Friends come online or go offline
     elseif( event == "FRIENDLIST_UPDATE" ) then
         friends:takeSnapshot( )
-        debug:info( "Took snapshot of friends-list - contains %d friends.", friends:count( ) )
+        debug:info( "Took snapshot of friends-list - contains %d friends.", friends:countFriendsInSnapshot( ) )
 
     -- Catchall for any registered but unhandled events
     else
@@ -98,15 +92,6 @@ function setupSlashCommands( )
 end
 
 
-function loadClassDataFromGlobals( )
-    friends:loadDataFromGlobal( )
-end
-
-
-function saveClassDataToGlobals( )
-    friends:saveDataToGlobal( )
-end
-
 -- main
 
 -- Set up debugging as required
@@ -115,12 +100,12 @@ debug:setLevel( INFO )
 
 friends = AF.Friends_mt:new( )          -- Create a new empty, Friends object
 
-local frame = CreateFrame( "Frame" )
+--local frame = CreateFrame( "Frame" )
+frame = CreateFrame( "Frame" )
 
 -- Set up event-handling.  See the actual event-handler function for info on
 -- when each event fires.
 frame:RegisterEvent( "PLAYER_LOGIN" )
---frame:RegisterEvent( "PLAYER_ENTERING_WORLD" )
 frame:RegisterEvent( "PLAYER_LOGOUT" )
 frame:RegisterEvent( "FRIENDLIST_UPDATE" )
 
