@@ -2,7 +2,7 @@
      File Name           :     Debugging.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-15 01:37]
+     Last Modified       :     [2019-01-20 01:30]
      Description         :     Debugging facility for the WoW addon AllFriends
 --]]
 
@@ -118,27 +118,30 @@ end
 -- @return
 local function logMsg( level, format, ... )
     local formatType = type( format )
+
+    local colourizedAddonName = string.format( "\124cffe900ff%s\124r", addonName )
+
     if( formatType == "string" ) then
         if( select( "#", ... ) > 0 ) then
             local status, msg = pcall( strfmt, format, ... )
             if( status ) then
-                DEFAULT_CHAT_FRAME:AddMessage( string.format( "%s: %s", addonName, msg ) )
+                DEFAULT_CHAT_FRAME:AddMessage( string.format( "%s: %s", colourizedAddonName, msg ) )
                 return
             else
-                DEFAULT_CHAT_FRAME:AddMessage( addonName .. ": Error formatting debug msg: " .. msg )
+                DEFAULT_CHAT_FRAME:AddMessage( colourizedAddonName  .. ": Error formatting debug msg: " .. msg )
                 return
             end
         else
-            DEFAULT_CHAT_FRAME:AddMessage( addonName .. ": " .. format )
+            DEFAULT_CHAT_FRAME:AddMessage( colourizedAddonName .. ": " .. format )
             return
         end
     elseif( formatType == 'function' ) then
         -- format should be a callable function which returns the message to be output
-        DEFAULT_CHAT_FRAME:AddMessage( addonName .. ": " .. format( ... ) )
+        DEFAULT_CHAT_FRAME:AddMessage( colourizedAddonName .. ": " .. format( ... ) )
         return
     end
     -- format is neither a string nor a function; Just call tostring() on it
-    DEFAULT_CHAT_FRAME:AddMessage( addonName .. ": " .. tostring( format) )
+    DEFAULT_CHAT_FRAME:AddMessage( colourizedAddonName .. ": " .. tostring( format) )
     return
 end
 
