@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-20 01:09]
+     Last Modified       :     [2019-01-20 23:01]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -59,6 +59,7 @@ local function EventHandler( self, event, ... )
     --        but NOT when entering/leaving instances.
     if( event == "PLAYER_LOGIN" ) then
         setupSlashCommands( )
+        debug:loadDataFromGlobal( )
         friends:loadDataFromGlobal( )
         debug:always("v%s initialized.", AF.addonVersion )
         friends:restoreSnapshot( )
@@ -67,6 +68,7 @@ local function EventHandler( self, event, ... )
     -- Fires: Whenever the player logs out or the UI is reloaded, just-before
     --        SavedVariables are saved.  Fires after PLAYER_LEAVING_WORLD.
     elseif( event == "PLAYER_LOGOUT" ) then
+        debug:saveDataToGlobal( )
         friends:saveDataToGlobal( )
 
     -- Fires whenever: - You login

@@ -2,7 +2,7 @@
      File Name           :     Debugging.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-20 01:30]
+     Last Modified       :     [2019-01-20 23:09]
      Description         :     Debugging facility for the WoW addon AllFriends
 --]]
 
@@ -11,7 +11,7 @@ This module of AllFriends implements a simple debugging facility, enabling the
 addon to output severity-filtered messages to the debug system (currently the
 chat-frame).  The following is a simplified example illustrating usage:
 
-debug = SS.Debugging_mt:new( )
+debug = AF.Debugging_mt:new( )
 debug:setLevel( ERROR )  -- may be DEBUG, INFO, WARN, ERROR, ALWAYS (increasing severity)
 
 debug:warn( "This message will not be output - WARN is lower severity than ERROR." )
@@ -28,7 +28,7 @@ debug:log( ERROR, You can also use debug:log() to specify the msg severity manua
 --  1. The name of the addon, and
 --  2. A table containing the globals for that addon.
 -- Using these lets all modules within an addon share the addon's global information.
-local addonName, SS = ...
+local addonName, AF = ...
 
 
 -- Debugging levels (increasing severity)
@@ -66,8 +66,8 @@ local ipairs        = ipairs
 
 
 --- Class metatable (stored within the Addon's globals)
-SS.Debugging_mt = {}
-SS.Debugging_mt.__index = SS.Debugging_mt
+AF.Debugging_mt = {}
+AF.Debugging_mt.__index = AF.Debugging_mt
 
 
 --- Class private method "tostring"
@@ -166,9 +166,9 @@ end
 --- Class constructor "new"
 -- Creates a new debugging object and sets initial debugging state
 -- @return          The newly constructed and initialized debugging object
-function SS.Debugging_mt:new( )
+function AF.Debugging_mt:new( )
     local debugObject = {}                          -- new object
-    setmetatable( debugObject, SS.Debugging_mt )    -- make SS.Debugging_mt handle lookup
+    setmetatable( debugObject, AF.Debugging_mt )    -- make AF.Debugging_mt handle lookup
 
     -- Per-object private Data
     ----------------------------------------------------------------------------
@@ -188,7 +188,7 @@ end
 --- Class public-method "setLevel"
 -- Sets the current debugging level
 -- @param   level       = one of the debug levels listed in LEVELLIST
-function SS.Debugging_mt:setLevel( level )
+function AF.Debugging_mt:setLevel( level )
     local order = LEVELLIST[level]
     if( order == nil ) then
         debug:error( "Undefined debug level [%s]; ignoring.", _tostring( level ) )
@@ -211,11 +211,19 @@ function SS.Debugging_mt:setLevel( level )
 end
 
 
+--- Class public-method "getLevel"
+-- Gets the current debugging level
+-- @return              = one of the debug levels listed in LEVELLIST
+function AF.Debugging_mt:getLevel( )
+    return self.level
+end
+
+
 --- Class public-method "log"
 -- Provides a way to log the specified message at the specified severity
 -- @param   level   Level of severity to log at
 -- @return  ...     Msg component(s) to log
-function SS.Debugging_mt:log( level, ... )
+function AF.Debugging_mt:log( level, ... )
     local order = LEVELLIST[level]
     if( order == nil ) then
         debug:error( "log() failed - Undefined debug level [%s].", _tostring( level ) )
@@ -226,5 +234,40 @@ function SS.Debugging_mt:log( level, ... )
         return logMsg( level, ... )
     end
 end
+
+
+--- class public method 'loadDataFromGlobal'
+-- Intended to be called whenever the player logs in or reloads their UI (which
+-- is when SavedVariable data is restored from the filesystem and placed into
+-- the addon's globals.  This method takes persistent debuggging state from the
+-- global data and reinjects it into the current debugging object.  Does nothing
+-- if no SavedVariable data is available (i.e. first-time the Addon has ever
+-- been run).
+-- @return  true    Successfully loaded global data into class data
+-- @return  false   No SavedVariable data found - nothing done.
+function AF.Debugging_mt:loadDataFromGlobal( )
+    debug:debug( "Loading persistent debug state from global SavedVariable" )
+    if( AllFriendsData == nil ) then
+        debug:debug( "No SavedVariable container table found - doing nothing." )
+        return false
+    end
+    self:setLevel( AllFriendsData.DebugLevel )
+    return true
+end
+
+
+--- class public method "saveDataToGlobal"
+-- Intended to be called whenever the player logs out or reloads their UI.
+-- This is when the addon's SavedVariable data is pulled from the addon's
+-- globals and serialized to the filesystem. This method takes the class's
+-- local data and places it into the addon's globals so it can be serialized.
+function AF.Debugging_mt:saveDataToGlobal( )
+    debug:info( "Saving debug state to global SavedVariable" )
+
+    AllFriendsData = AllFriendsData or {}
+    AllFriendsData.DebugLevel = self:getLevel( )
+    return
+end
+
 
 -- vim: autoindent tabstop=4 shiftwidth=4 softtabstop=4 expandtab
