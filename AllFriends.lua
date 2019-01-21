@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-20 23:01]
+     Last Modified       :     [2019-01-21 12:14]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -50,6 +50,34 @@ local function slashCommandHandler( msg, editbox )
     end
 end
 
+
+--- Addon local function "initialOnUpdateHandler"
+-- Responsible for doing everything required during addon-startup, prior to
+-- commencing normal event-based operation.
+-- @param    self      Addon context
+-- @param    elapsed   How long since the last updated call cycle
+local function initialOnUpdateHandler( self, elapsed )
+    local isAvailable = false
+    local friendInfo = {}
+    local numServerFriends = C_FriendList.GetNumFriends( )
+
+    -- Do nothing further until the friend-list has become available
+    if( not friends:isFriendListAvailable( ) ) then
+        debug:info( "Friend List still unavailable..." )
+        return
+    end
+
+    frame:SetScript( "OnUpdate", nil )
+    debug:info( "OnUpdate disabled." )
+
+    friends:restoreSnapshot( )
+    debug:info( "Friends-list synchronized." )
+
+    frame:RegisterEvent( "PLAYER_LOGOUT" )
+    frame:RegisterEvent( "FRIENDLIST_UPDATE" )
+    debug:info( "Events registered." )
+end
+
 -- See the various frame:RegisterEvent( ... ) statements below for triggering info
 local function EventHandler( self, event, ... )
 
@@ -62,8 +90,9 @@ local function EventHandler( self, event, ... )
         debug:loadDataFromGlobal( )
         friends:loadDataFromGlobal( )
         debug:always("v%s initialized.", AF.addonVersion )
-        friends:restoreSnapshot( )
-        debug:info( "Friends-list synchronized." )
+
+        frame:SetScript( "OnUpdate", initialOnUpdateHandler )
+        debug:debug( "OnUpdate has been set up." )
 
     -- Fires: Whenever the player logs out or the UI is reloaded, just-before
     --        SavedVariables are saved.  Fires after PLAYER_LEAVING_WORLD.
@@ -94,23 +123,22 @@ function setupSlashCommands( )
 end
 
 
--- main
 
--- Set up debugging as required
-debug = AF.Debugging_mt:new( )
-debug:setLevel( INFO )
+debug = AF.Debugging_mt:new( )          
+debug:setLevel( INFO )                  -- Default until persistent state loaded from Global
 
-friends = AF.Friends_mt:new( )          -- Create a new empty, Friends object
+friends = AF.Friends_mt:new( )          
 
---local frame = CreateFrame( "Frame" )
+
+-- There seems to be issues with the player's friend-list not being available at
+-- the point events like PLAYER_LOGIN or even PLAYER_ENTERING_WORLD are fired.
+-- To accomodate this, we do almost nothing on PLAYER_LOGIN, except for setting
+-- up an Onpdate timer that frequently checks for the friends-list availability,
+-- irrespective of events.  The OnUpdate timer handler will do the initial
+-- friend-list sync and set up any subsequent event-handling we want (and
+-- disable itself in the proocess).
 frame = CreateFrame( "Frame" )
-
--- Set up event-handling.  See the actual event-handler function for info on
--- when each event fires.
 frame:RegisterEvent( "PLAYER_LOGIN" )
-frame:RegisterEvent( "PLAYER_LOGOUT" )
-frame:RegisterEvent( "FRIENDLIST_UPDATE" )
-
 frame:SetScript( "OnEvent", EventHandler )
 
 
