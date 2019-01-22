@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-21 12:14]
+     Last Modified       :     [2019-01-22 00:48]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -57,25 +57,26 @@ end
 -- @param    self      Addon context
 -- @param    elapsed   How long since the last updated call cycle
 local function initialOnUpdateHandler( self, elapsed )
-    local isAvailable = false
-    local friendInfo = {}
-    local numServerFriends = C_FriendList.GetNumFriends( )
+    debug:debug( "Entered initialOnUpdateHandler( )" )
 
-    -- Do nothing further until the friend-list has become available
-    if( not friends:isFriendListAvailable( ) ) then
-        debug:info( "Friend List still unavailable..." )
-        return
+    -- If no players in current friend list then don't bother checking if the
+    -- friend-list is available yet, because all we will potentially be doing
+    -- are inserts.  Just proceed with the snapshot-restore; any adds to the
+    -- friend-list will queue up until the list becomes available.
+    --
+    -- If the friend-list contains players, then we need to check availability
+    -- of the friend list because we may need to remove stale entries.  Do not
+    -- proceed with the snapshot-restore until the list becomes available.
+    if( friends:countFriendList( ) == 0 or friends:isFriendListAvailable( ) == true ) then
+        frame:SetScript( "OnUpdate", nil )
+        debug:debug( "OnUpdate disabled." )
+        friends:restoreSnapshot( )
+        frame:RegisterEvent( "PLAYER_LOGOUT" )
+        frame:RegisterEvent( "FRIENDLIST_UPDATE" )
+        debug:info( "Events registered." )
+    else
+        debug:debug( "Friend list contains friends but is currently unavailable - will check again." )
     end
-
-    frame:SetScript( "OnUpdate", nil )
-    debug:info( "OnUpdate disabled." )
-
-    friends:restoreSnapshot( )
-    debug:info( "Friends-list synchronized." )
-
-    frame:RegisterEvent( "PLAYER_LOGOUT" )
-    frame:RegisterEvent( "FRIENDLIST_UPDATE" )
-    debug:info( "Events registered." )
 end
 
 -- See the various frame:RegisterEvent( ... ) statements below for triggering info

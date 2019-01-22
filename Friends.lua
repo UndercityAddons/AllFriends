@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-21 12:45]
+     Last Modified       :     [2019-01-22 01:30]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -234,22 +234,26 @@ function AF.Friends_mt:countFriendsInSnapshot( )
 end
 
 
+--- Class public method "countFriendList"
+-- Returns the number of players in the current friend-list
+-- @return          Number of players in the current friend-list
+function AF.Friends_mt:countFriendList( )
+    local numFriends = C_FriendList.GetNumFriends( )
+   debug:debug( "C_FriendsList.GetNumFriends() returned %d", numFriends )
+    return numFriends
+end
+
+
 --- Class public method "isFriendListAvailable"
 -- It appears that when starting the game, the Friend List may not yet be
 -- available by the time events such as PLAYER_LOGIN and PLAYER_ENTERING_WORLD
--- fire.  This method attempts to detect that by requesting a friend-count
--- (which apparently IS available), and then getting the 1st friend (if you
--- have any).
--- @return:  true    Friend-count > 0 and 1st friend successfully retrieved
--- @return:  true    Friend-count = 0 
--- @return:  false   Friend-count > 0 but  1st friend failed to be retrieved
+-- fire.  This tests whether a friend-list is currently available.
+--
+-- NOTE: this method assumes that the friend-list contains at-least one player.
+--
+-- @return:  true    Friend-list is available.
+-- @return:  false   Friend-list is unavailable.
 function AF.Friends_mt:isFriendListAvailable( )
-    local numServerFriends = C_FriendList.GetNumFriends( )
-    if( numServerFriends == nil ) then
-        debug:always( "NumServerFriends: nil" )
-    else
-        debug:always( string.format( "numServerFriends: %d", numServerFriends ) )
-    end
 
     local friendInfo = C_FriendList.GetFriendInfoByIndex( 1 )
     if( friendInfo == nil ) then
@@ -302,41 +306,6 @@ end
 --       list is altered.
 function AF.Friends_mt:restoreSnapshot( )
 
-    -- Recursive function to repeatedly check if the friends list is available.
-    -- e.g.:  tryFriendListAvailable( 10, 5 )  -- tries 10 times, starting with a 5-sec delay
-    -- @param   numTriesLeft    How many times in total to do the check
-    -- @param   waitSecs        Initial delay between tries - DOUBLES after each attempt
-    -- @return  true            Friend List is available
-    -- @return  false           Friend list unavailable, no more tries left
---    local function tryFriendListAvailable( numTriesLeft, waitSecs )
---        if( numTriesLeft == 0 ) then
---            debug:always( "No more loop tries" )
---            return false
---        else
---            if( isFriendListAvailable( ) ) then
---                debug:always( "Loop ending - available" )
---                return true
---            else
---                debug:always( "Loop recursing - %d tries left.", numTriesLeft - 1 )
---                return C_Timer.After( waitSecs, function() tryFriendListAvailable( numTriesLeft - 1, waitSecs * 2 ) end )
---            end
---        end
---    end
-
-    -- Start 5 attempts to see if friend-list is available.  Delay 5 secs
-    -- after 1st attempt.  Double the delay after each successive attempt.
---    if( tryFriendListAvailable( 5, 5 ) ) then
---        debug:always( "List available - continuing with restore." )
---    else
---        debug:always( "List unavailable - giving up." )
---        return
---    end
-
-    -- Now that we're about to actually alter the friend-list, Unregister
-    -- the FRIENDLIST_UPDATE event to prevent these changes from causing
-    -- new snapshots to be taken mid-way through.
---    frame:UnregisterEvent( "FRIENDLIST_UPDATE" )
-
     -- Go through snapshot and add all missing players within it into the friends list
     local numServerFriends = C_FriendList.GetNumFriends( )
     local currentFriend
@@ -362,10 +331,6 @@ function AF.Friends_mt:restoreSnapshot( )
             debug:info( "%s in friends-list but not snapshot - removed.", currentFriend )
         end
     end
-
-    -- Re-register the FRIENDLIST_UPDATE now that restoring the snapshot has
-    -- finished.
---    frame:RegisterEvent( "FRIENDLIST_UPDATE" )
 
     self.snapshotRestored = true    -- Flag that a snapshot restoration has completed
     return
@@ -419,7 +384,7 @@ function AF.Friends_mt:loadDataFromGlobal( )
                 if( groupArray.tFriends ~= nil and groupArray.numFriends ~= nil ) then
                     self.tFriends   = groupArray.tFriends
                     self.numFriends = groupArray.tFriends
-                    debug:debug( "Snapshot loaded from realm group #%d", rIndex )
+                    debug:debug( "Snapshot loaded" )
                     return true
                 else
                     debug:debug( "SavedVariable exists but missing mandatory data - doing nothing." )
