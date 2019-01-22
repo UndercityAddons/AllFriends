@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-22 01:30]
+     Last Modified       :     [2019-01-22 14:59]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -45,6 +45,9 @@ function AF.Friends_mt:new( )
     if( self.tConnectedRealms[1] == nil ) then                               -- or if unconnected, 
         table.insert( self.tConnectedRealms, self.Realm )                    -- then the local realm
     end
+    for k,v in pairs( self.tConnectedRealms ) do    -- Convert realm-names to all-lowercase
+        self.tConnectedRealms[k] = v:lower()
+    end
 
     return friendsObject
 end
@@ -84,6 +87,8 @@ end
 -- @return  true        Friend stashed successfully
 -- @return  false       Error stashing friend
 local function stashFriendInSnapshot( self, friendName )
+    friendName = string.lower( friendName ) -- Always stash all-lowercase names
+
     if( friendName == "" ) then                             -- Don't stash if name is empty
         debug:warn( "Can't stash an empty friend name." )
         return false
@@ -115,6 +120,7 @@ end
 -- @param   playerName  Name of Player to operate on
 -- @return              Player name w/o realm if realm is the current one
 local function stripRealmFromNameIfLocal( self, playerName )
+    playerName = string.lower( playerName )
 
     -- Get position of name/realm delimiter in Player's name, if realm is present
     p = string.find( playerName, "-" )
@@ -175,7 +181,7 @@ local function removeFriendFromFriendList( self, friendName )
         return false
     end
 
-    -- Strip local realm-qualifiers (friends list requires this), and then
+    -- Strip local realm-qualifiers (certain WoW APIs require this), and then
     -- remove the friend from the friends list if present
     friendName = stripRealmFromNameIfLocal( self, friendName )
     if( isPlayerInFriendList( self, friendName ) ) then
@@ -257,16 +263,16 @@ function AF.Friends_mt:isFriendListAvailable( )
 
     local friendInfo = C_FriendList.GetFriendInfoByIndex( 1 )
     if( friendInfo == nil ) then
-        debug:always( "GetFriendInfoByIndex() returned nil - server friend list unavailable." )
+        debug:debug( "GetFriendInfoByIndex() returned nil - server friend list unavailable." )
         return false
     elseif( friendInfo.name == nil ) then
-        debug:always( "friendInfo.name is nil - server friend list unavailable." )
+        debug:debug( "friendInfo.name is nil - server friend list unavailable." )
         return false
     elseif( friendInfo.name == "" ) then
-        debug:always( "friendInfo.name is empty - server friend list unavailable." )
+        debug:debug( "friendInfo.name is empty - server friend list unavailable." )
         return false
     else
-        debug:always( "Server friend-list available." )
+        debug:debug( "Server friend-list available." )
         return true
     end
 end
@@ -287,8 +293,7 @@ function AF.Friends_mt:takeSnapshot( )
         local i, currentFriend, discard     -- For every current friend, stash into snapshot
         for i = 1, numServerFriends, 1 do
             local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
-            currentFriend = addRealmToName( self, friendInfo.name ); -- qualify name with current realm
-            debug:debug( "friendInfo: %s", currentFriend )
+            currentFriend = string.lower( addRealmToName( self, friendInfo.name ) ) -- qualify name with current realm
             stashFriendInSnapshot( self, currentFriend )
         end
     end
@@ -323,7 +328,7 @@ function AF.Friends_mt:restoreSnapshot( )
     local i
     for i = 1, numServerFriends, 1 do
         local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
-        currentFriend = addRealmToName( self, friendInfo.name ) -- qualify name with current realm
+        currentFriend = addRealmToName( self, string.lower( friendInfo.name ) ) -- qualify name with current realm
         if( isFriendInSnapshot( self, currentFriend )  ) then
             debug:debug( "%s already in both friends-list and snapshot.",currentFriend )
         else
@@ -333,6 +338,7 @@ function AF.Friends_mt:restoreSnapshot( )
     end
 
     self.snapshotRestored = true    -- Flag that a snapshot restoration has completed
+    debug:warn( "Friends List synchronized." )
     return
 end
 
