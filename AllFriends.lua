@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-22 00:48]
+     Last Modified       :     [2019-01-22 15:10]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -126,7 +126,7 @@ end
 
 
 debug = AF.Debugging_mt:new( )          
-debug:setLevel( INFO )                  -- Default until persistent state loaded from Global
+debug:setLevel( WARN )                  -- Default until persistent state loaded from Global
 
 friends = AF.Friends_mt:new( )          
 
