@@ -2,7 +2,7 @@
      File Name           :     Debugging.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-22 15:19]
+     Last Modified       :     [2019-01-23 00:29]
      Description         :     Debugging facility for the WoW addon AllFriends
 --]]
 
@@ -37,6 +37,27 @@ INFO      = "INFO"    -- Informative information
 WARN      = "WARN"    -- Warnings about unexpected conditions/results
 ERROR     = "ERROR"   -- Errors that will break things
 ALWAYS    = "ALWAYS"  -- Output that should be shown unconditionally
+
+
+-- COLOR CODES (can be used within debug messages)
+AF.DBG_BLACK   = "\124cff000000"
+AF.DBG_MAROON  = "\124cff800000"
+AF.DBG_GREEN   = "\124cff008000"
+AF.DBG_OLIVE   = "\124cff808000"
+AF.DBG_NAVY    = "\124cff000080"
+AF.DBG_PURPLE  = "\124cff800080"
+AF.DBG_TEAL    = "\124cff008080"
+AF.DBG_SILVER  = "\124cffc0c0c0"
+AF.DBG_GRAY    = "\124cff808080"
+AF.DBG_RED     = "\124cffff0000"
+AF.DBG_LIME    = "\124cff00ff00"
+AF.DBG_YELLOW  = "\124cffffff00"
+AF.DBG_BLUE    = "\124cff0000ff"
+AF.DBG_MAGENTA = "\124cffff00ff"
+AF.DBG_CYAN    = "\124cff00ffff"
+AF.DBG_WHITE   = "\124cffffffff"
+AF.DBG_REGULAR = "\124r"
+
 
 -- Create a table of debugging level names that are indexed by their increasing
 -- severity.  Then add another set of elements to the same table that are the
@@ -188,10 +209,13 @@ end
 --- Class public-method "setLevel"
 -- Sets the current debugging level
 -- @param   level       = one of the debug levels listed in LEVELLIST
+-- @return  true        = Debugging level changed successfully
+-- @return  false       = Unable to change debug level
 function AF.Debugging_mt:setLevel( level )
     local order = LEVELLIST[level]
     if( order == nil ) then
         debug:error( "Undefined debug level [%s]; ignoring.", _tostring( level ) )
+        return false
     else
         if( self.level ~= level ) then
             self:log( WARN, "Changing debugging verbosity from %s to %s", self.level, level )
@@ -208,6 +232,7 @@ function AF.Debugging_mt:setLevel( level )
             end
         end
     end
+    return true
 end
 
 
