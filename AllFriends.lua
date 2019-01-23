@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-23 01:23]
+     Last Modified       :     [2019-01-23 10:33]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -86,7 +86,7 @@ local function slashCommandHandler( msg, editbox )
     debug:always( "" )
     debug:always( "%s/afriends %sfriends%s",
                    COMMAND, OPTION, REGULAR )
-    debug:always( "     (Display contens of the current friends snapshot)" )
+    debug:always( "     (Display contents of the current friends snapshot)" )
     return
 end
 
@@ -112,8 +112,16 @@ local function initialOnUpdateHandler( self, elapsed )
         debug:debug( "OnUpdate disabled." )
         friends:restoreSnapshot( )
         frame:RegisterEvent( "PLAYER_LOGOUT" )
-        frame:RegisterEvent( "FRIENDLIST_UPDATE" )
-        debug:debug( "Events registered." )
+
+        -- For FRIENDLIST_UPDATE, delay a bit before registering the event to
+        -- allow all changes made by the restore to complete first. This should
+        -- help to avoid unnecessary triggering of new snapshots caused by the
+        -- restore changes.
+        C_Timer.After( 10, function()
+            frame:RegisterEvent( "FRIENDLIST_UPDATE" )
+            debug:debug( "Events registered." )
+        end )
+
     else
         debug:debug( "Friend list contains friends but is currently unavailable - will check again." )
     end

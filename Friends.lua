@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-23 01:28]
+     Last Modified       :     [2019-01-23 10:33]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -36,6 +36,7 @@ function AF.Friends_mt:new( )
     self.tConnectedRealms   = {}        -- Tbl of connected or local realms
     self.snapshotRestored   = false     -- Has a snapshot-restore completed
     self.doDeletions        = false     -- Should the addon delete stale friends
+    self.tSkipDelete        = {}        -- Table of stale friends to not delete
     ----------------------------------------------------------------------------
 
 
@@ -296,7 +297,11 @@ function AF.Friends_mt:takeSnapshot( )
         for i = 1, numServerFriends, 1 do
             local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
             currentFriend = string.lower( addRealmToName( self, friendInfo.name ) ) -- qualify name with current realm
-            stashFriendInSnapshot( self, currentFriend )
+            if( not self.doDeletions and self.tSkipDelete[ currentFriend ] ) then   -- skip stale friends if deletes are off
+                debug:debug( "Stale friend %s not added to snapshot.", currentFriend )
+            else
+                stashFriendInSnapshot( self, currentFriend )
+            end
         end
     end
     return
@@ -313,6 +318,16 @@ end
 --       list is altered.
 function AF.Friends_mt:restoreSnapshot( )
 
+    -- Temporarily this event so that restores don't trigger new snapshots mid-way through
+    -- Remember what the old register state was so it can be restored afterward.
+    local oldRegisterState = frame:IsEventRegistered( "FRIENDLIST_UPDATE" ) == 1 or false
+    if( oldRegisterState ) then
+        frame:UnregisterEvent( "FRIENDLIST_UPDATE" )
+        debug:debug( "Unregistering FRIENDLIST_UPDATE during restore" )
+    else
+        debug:debug( "FRIENDLIST_UPDATE already unregistered during restore" )
+    end
+
     -- Go through snapshot and add all missing players within it into the friends list
     local numServerFriends = C_FriendList.GetNumFriends( )
     local currentFriend
@@ -328,19 +343,35 @@ function AF.Friends_mt:restoreSnapshot( )
     -- If enabled, then go through friends list and remove all players that
     -- aren't also within the snapshot (i.e. are now stale).
     numServerFriends = C_FriendList.GetNumFriends( )
-    if( self.doDeletions ) then
-        for i = 1, numServerFriends, 1 do
-            local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
-            currentFriend = addRealmToName( self, string.lower( friendInfo.name ) ) -- qualify name with current realm
-            if( isFriendInSnapshot( self, currentFriend )  ) then
-                debug:debug( "friend %s is not stale - leaving alone.",currentFriend )
-            else
+    for i = 1, numServerFriends, 1 do
+        local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
+        currentFriend = addRealmToName( self, string.lower( friendInfo.name ) ) -- qualify name with current realm
+        if( isFriendInSnapshot( self, currentFriend )  ) then
+            debug:debug( "friend %s is not stale - leaving alone.",currentFriend )
+        else
+            if( self.doDeletions )
+            then
                 removeFriendFromFriendList( self, currentFriend )
-                debug:info( "stale friend %s removed from friends-list.", currentFriend )
+                debug:info( "Stale friend %s removed from friends-list.", currentFriend )
+            else
+                currentFriend = string.lower( addRealmToName( self, currentFriend ) )
+                self.tSkipDelete[ currentFriend ] = true
+                debug:debug( "Stale friend %s flagged for no-deletion.", currentFriend )
             end
         end
+    end
+
+    -- Now that the restore is finished, re-register this event (only if it
+    -- was previously registered prior to starting the restore)
+    -- Instead of re-registering immediately, do so after a short delay to
+    -- ensure all friend-list changes have been processesd by the server.
+    -- This should avoid unnecessary triggering of new snapshots for each
+    -- change made.
+    if( oldRegisterState ) then
+        debug:debug( "Restore complete, re-registering FRIENDLIST_UPDATE" )
+        C_Timer.After( 10, function() frame:RegisterEvent( "FRIENDLIST_UPDATE" ) end )
     else
-        debug:debug( "Stale friend deletions disabled - not checking." )
+        debug:debug( "Restore complete, not re-registering FRIENDLIST_UPDATE" )
     end
 
     self.snapshotRestored = true    -- Flag that a snapshot restoration has completed
