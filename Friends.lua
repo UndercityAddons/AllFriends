@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-22 14:59]
+     Last Modified       :     [2019-01-22 15:33]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -101,7 +101,7 @@ local function stashFriendInSnapshot( self, friendName )
     end
 
     if( isFriendInSnapshot( self, friendName ) ) then    -- Do nothing if friend already stashed
-        debug:info( "Friend %s already stashed - doing nothing.", friendName )
+        debug:warn( "Friend %s already stashed - doing nothing.", friendName )
     else
         self.tFriends[friendName] = "stashed"           -- Go ahead and stash friend
         self.numFriends = self.numFriends + 1
@@ -177,7 +177,7 @@ end
 -- @return  false       Problem with friend name (e.g. nil, empty)
 local function removeFriendFromFriendList( self, friendName )
     if( friendName == nil or friendName == "" ) then
-        debug:warn( "problem with friend name - not removing from friends-list." )
+        debug:warn( "Friend name nil or empty - not removing from friends-list." )
         return false
     end
 
@@ -186,6 +186,7 @@ local function removeFriendFromFriendList( self, friendName )
     friendName = stripRealmFromNameIfLocal( self, friendName )
     if( isPlayerInFriendList( self, friendName ) ) then
         C_FriendList.RemoveFriend( friendName )
+        debug:info( "Removing %s from friend list ", friendName )
     end
     return true
 end
@@ -319,7 +320,7 @@ function AF.Friends_mt:restoreSnapshot( )
             debug:debug( "%s already in friend-list", currentFriend )
         else
             C_FriendList.AddFriend( currentFriend )
-            debug:warn( "%s added to friend-list.", currentFriend )
+            debug:info( "%s added to friend-list.", currentFriend )
         end
     end
 
@@ -338,7 +339,7 @@ function AF.Friends_mt:restoreSnapshot( )
     end
 
     self.snapshotRestored = true    -- Flag that a snapshot restoration has completed
-    debug:warn( "Friends List synchronized." )
+    debug:always( "Friends List synchronized." )
     return
 end
 
@@ -412,7 +413,7 @@ end
 -- globals and serialized to the filesystem. This method takes the class's
 -- local data and places it into the addon's globals so it can be serialized.
 function AF.Friends_mt:saveDataToGlobal( )
-    debug:info( "Saving snapshot to global SavedVariable" )
+    debug:debug( "Saving snapshot to global SavedVariable" )
     local gIndex = 1
     local rIndex = 1
     local groupArray = {}
@@ -432,7 +433,7 @@ function AF.Friends_mt:saveDataToGlobal( )
                     groupArray.realmList  = self.tConnectedRealms
                     groupArray.tFriends   = self.tFriends
                     groupArray.numFriends = self.numFriends
-                    debug:info( "Snapshot saved into existing realm group #%d", rIndex )
+                    debug:debug( "Snapshot exists for current realm - updating." )
                     return
                 end
                 rIndex = rIndex + 1
@@ -451,7 +452,7 @@ function AF.Friends_mt:saveDataToGlobal( )
     groupArray.realmList  = self.tConnectedRealms
     groupArray.tFriends   = self.tFriends
     groupArray.numFriends = self.numFriends
-    debug:info( "Snapshot saved into existing realm group #%d", rIndex )
+    debug:debug( "No snapshot found for current realm - creating new one." )
     return
 end
 

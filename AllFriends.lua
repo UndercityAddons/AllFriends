@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-22 15:10]
+     Last Modified       :     [2019-01-22 15:32]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -73,7 +73,7 @@ local function initialOnUpdateHandler( self, elapsed )
         friends:restoreSnapshot( )
         frame:RegisterEvent( "PLAYER_LOGOUT" )
         frame:RegisterEvent( "FRIENDLIST_UPDATE" )
-        debug:info( "Events registered." )
+        debug:debug( "Events registered." )
     else
         debug:debug( "Friend list contains friends but is currently unavailable - will check again." )
     end
@@ -109,11 +109,11 @@ local function EventHandler( self, event, ... )
     --                 - Friends come online or go offline
     elseif( event == "FRIENDLIST_UPDATE" ) then
         friends:takeSnapshot( )
-        debug:info( "Took snapshot of friends-list - contains %d friends.", friends:countFriendsInSnapshot( ) )
+        debug:debug( "Took snapshot of friends-list - contains %d friends.", friends:countFriendsInSnapshot( ) )
 
     -- Catchall for any registered but unhandled events
     else
-        debug:warn( "Unexpected event %s passed to EventHandler() - ignored.", event )
+        debug:debug( "Unexpected event %s passed to EventHandler() - ignored.", event )
     end
 end
 
@@ -126,7 +126,7 @@ end
 
 
 debug = AF.Debugging_mt:new( )          
-debug:setLevel( WARN )                  -- Default until persistent state loaded from Global
+debug:setLevel( ERROR )                  -- Default until persistent state loaded from Global
 
 friends = AF.Friends_mt:new( )          
 

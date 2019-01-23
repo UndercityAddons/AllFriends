@@ -2,7 +2,7 @@
      File Name           :     Debugging.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-20 23:09]
+     Last Modified       :     [2019-01-22 15:19]
      Description         :     Debugging facility for the WoW addon AllFriends
 --]]
 
@@ -193,8 +193,8 @@ function AF.Debugging_mt:setLevel( level )
     if( order == nil ) then
         debug:error( "Undefined debug level [%s]; ignoring.", _tostring( level ) )
     else
-        if( self.level ) then
-            self:log( WARN, "Changing log-level from %s to %s", self.level, level )
+        if( self.level ~= level ) then
+            self:log( WARN, "Changing debugging verbosity from %s to %s", self.level, level )
         end
         self.level = level
         self.order = order
