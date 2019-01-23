@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-22 15:32]
+     Last Modified       :     [2019-01-23 01:23]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -37,17 +37,57 @@ end
 
 local function slashCommandHandler( msg, editbox )
     msg = string.lower( msg )
+
+    -- Set the debugging severity level
     if( startswith( msg, "debug" ) ) then
-        local p = string.find( msg, " " )
+        p = string.find( msg, " " )
         debug:setLevel( string.upper( string.sub( msg, p + 1 ) ) )
         return
-    end
-    if( msg == "dumpfriends" ) then
+
+    -- Show the contents of the current snapshot
+    elseif( msg == "friends" ) then
         friends:dumpFriendSnapshot( )
-    else
-        debug:always( "/afriends debug <debug|info|warn|error|always>   Set debugging output severity" )
-        debug:always( "/afriends dumpfriends: Display the current friends snapshot" )
+        return
+    
+    -- Control whether the addon deletes stale friends from the friend list or not
+    elseif( startswith( msg, "delete" ) ) then
+        p = string.find( msg, " " )
+        delCmd = string.lower( string.sub( msg, p + 1 ) )
+        if( delCmd == "show" ) then
+            if( friends:isDeletionActive( ) ) then
+                debug:always( "Stale friend deletion enabled." )
+            else
+                debug:always( "Stale friend deletion disabled." )
+            end
+        elseif( delCmd == "on" ) then
+            friends:enableDeletion( )
+            debug:always( "Stale friend deletion enabled." )
+        elseif( delCmd == "off" ) then
+            friends:disableDeletion( )
+            debug:always( "Stale friend deletion disabled." )
+        else
+            debug:always( "Unrecognized command: delete %s", delCmd )
+        end
+        return
     end
+
+    -- Unrecognized slashcommand - display help (with fancy colours!)
+    local REGULAR = AF.DBG_REGULAR
+    local COMMAND = AF.DBG_LIME
+    local OPTION  = AF.DBG_CYAN
+    local ARG     = AF.DBG_YELLOW
+    debug:always( "%s/afriends %sdebug %s<%sdebug%s, %sinfo%s, %swarn%s, %serror%s, %salways%s>",
+                   COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
+    debug:always( "     (Sets the debugging output severity)" )
+    debug:always( "" )
+    debug:always( "%s/afriends %sdelete %s<%son%s, %soff%s, %sshow%s>",
+                   COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
+    debug:always( "     (Show or set whether the addon deletes stale friends)" )
+    debug:always( "" )
+    debug:always( "%s/afriends %sfriends%s",
+                   COMMAND, OPTION, REGULAR )
+    debug:always( "     (Display contens of the current friends snapshot)" )
+    return
 end
 
 

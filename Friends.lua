@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-22 15:33]
+     Last Modified       :     [2019-01-23 01:28]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -35,6 +35,7 @@ function AF.Friends_mt:new( )
     self.Realm              = ""        -- Name of current realm
     self.tConnectedRealms   = {}        -- Tbl of connected or local realms
     self.snapshotRestored   = false     -- Has a snapshot-restore completed
+    self.doDeletions        = false     -- Should the addon delete stale friends
     ----------------------------------------------------------------------------
 
 
@@ -324,18 +325,22 @@ function AF.Friends_mt:restoreSnapshot( )
         end
     end
 
-    -- Go through friends list and remove all players that aren't also within the snapshot
+    -- If enabled, then go through friends list and remove all players that
+    -- aren't also within the snapshot (i.e. are now stale).
     numServerFriends = C_FriendList.GetNumFriends( )
-    local i
-    for i = 1, numServerFriends, 1 do
-        local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
-        currentFriend = addRealmToName( self, string.lower( friendInfo.name ) ) -- qualify name with current realm
-        if( isFriendInSnapshot( self, currentFriend )  ) then
-            debug:debug( "%s already in both friends-list and snapshot.",currentFriend )
-        else
-            removeFriendFromFriendList( self, currentFriend )
-            debug:info( "%s in friends-list but not snapshot - removed.", currentFriend )
+    if( self.doDeletions ) then
+        for i = 1, numServerFriends, 1 do
+            local friendInfo = C_FriendList.GetFriendInfoByIndex( i )
+            currentFriend = addRealmToName( self, string.lower( friendInfo.name ) ) -- qualify name with current realm
+            if( isFriendInSnapshot( self, currentFriend )  ) then
+                debug:debug( "friend %s is not stale - leaving alone.",currentFriend )
+            else
+                removeFriendFromFriendList( self, currentFriend )
+                debug:info( "stale friend %s removed from friends-list.", currentFriend )
+            end
         end
+    else
+        debug:debug( "Stale friend deletions disabled - not checking." )
     end
 
     self.snapshotRestored = true    -- Flag that a snapshot restoration has completed
@@ -377,6 +382,11 @@ function AF.Friends_mt:loadDataFromGlobal( )
         debug:debug( "No SavedVariable container table found - doing nothing." )
         return false
     end
+    
+    local myName = string.lower( addRealmToName( self, UnitName( "player" ) ) )
+    if( AllFriendsData.doDeletions ~= nil ) then
+        self.doDeletions = AllFriendsData.doDeletions[ myName ] or self.DoDeletions
+    end
 
     -- Find the group of connected realms in SavedVariables that contains the
     -- current realm, and place related info into the class private data
@@ -414,12 +424,16 @@ end
 -- local data and places it into the addon's globals so it can be serialized.
 function AF.Friends_mt:saveDataToGlobal( )
     debug:debug( "Saving snapshot to global SavedVariable" )
-    local gIndex = 1
-    local rIndex = 1
+    local gIndex     = 1
+    local rIndex     = 1
     local groupArray = {}
-    local curRealm = string.lower( self.Realm )
+    local curRealm   = string.lower( self.Realm )
+    local myName     = string.lower( addRealmToName( self, UnitName( "player" ) ) )
 
     AllFriendsData = AllFriendsData or {}
+
+    AllFriendsData.doDeletions = AllFriendsData.doDeletions or {}
+    AllFriendsData.doDeletions[myName] = self.doDeletions
 
     if( AllFriendsData.RealmGroups ~= nil ) then
         -- Find an existing connected realm group containing the current realm if
@@ -453,6 +467,31 @@ function AF.Friends_mt:saveDataToGlobal( )
     groupArray.tFriends   = self.tFriends
     groupArray.numFriends = self.numFriends
     debug:debug( "No snapshot found for current realm - creating new one." )
+    return
+end
+
+--- class public method "isDeleteActive( )
+-- Indicates whether or not the addon will delete stale friends from the
+-- friend list.
+-- @return  true    Deletions will be done.
+-- @return  false   Deletions will not be done.
+function AF.Friends_mt:isDeletionActive( )
+    return self.doDeletions
+end
+
+
+--- class public method "enableDeletion( )
+-- Enable the deletion of stale friends from the friend list
+function AF.Friends_mt:enableDeletion( )
+    self.doDeletions = true
+    return
+end
+
+
+--- class public method "disableDeletion( )
+-- Disable the deletion of stale friends from the friend list
+function AF.Friends_mt:disableDeletion( )
+    self.doDeletions = false
     return
 end
 
