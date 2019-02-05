@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-03 23:31]
+     Last Modified       :     [2019-02-05 11:04]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -24,24 +24,84 @@ local strfind           = string.find
 local strlower          = string.lower
 local strupper          = string.upper
 local strsub            = string.sub
-local tostring          = AF._tostring
 local startswith        = AF.startswith
+
+
+-- Colour definitions for slashcommand output
+local ARG           = AF.DBG_YELLOW
+local COMMAND       = AF.DBG_LIME
+local OPTION        = AF.DBG_CYAN
+local OPTION_OFF    = AF.DBG_MAGENTA
+local OPTION_ON     = AF.DBG_LIME
+local REGULAR       = AF.DBG_REGULAR
+local VALUE         = AF.DBG_YELLOW
+
+
+--- Addon local function "outputFriendSnapshotList"
+-- Dumps the contents of the current snapshot to debugging output.
+local function outputFriendSnapshotList( snapshotObj )
+        snapshotObj:dumpFriendSnapshot( )
+end
+
+
+--- Addon local function "outputFriendSnapshotList"
+-- Displays a colourized count of friends in the current snapshot.
+local function outputFriendSnapshotCount( snapshotObj )
+    debug:always( "Total # of friends in snapshot: %s%d%s", VALUE, snapshotObj:getNumFriends( ), REGULAR )
+end
+
+
+--- Addon local function "outputFriendSnapshotList"
+-- Displays a colourized indicator of the current friend-deletion setting.
+local function outputDeleteStatus( snapshotObj )
+    if( snapshotObj:isDeletionActive( ) ) then
+        debug:always( "Stale friend deletion: %senabled%s", OPTION_ON, REGULAR )
+    else
+        debug:always( "Stale friend deletion: %sdisabled%s", OPTION_OFF, REGULAR )
+    end
+end
+
+
+--- Addon local function "outputFriendSnapshotList"
+-- Displays a colourized indicator of the current debugging severity level.
+local function outputDebuggingStatus( debugObj )
+    debug:always( "Debug level is currently %s%s%s.", VALUE, strupper( debugObj:getLevel( ) ), REGULAR )
+end
+
+
+--- Addon local function "outputFriendSnapshotList"
+-- Displays a colourized indicator of the current full-sync setting.
+local function outputFullSyncStatus( snapshotObj )
+    if( snapshotObj:isFullSyncActive( ) ) then
+        debug:always( "Full-Sync (current and connected realms): %sON%s", OPTION_ON, REGULAR )
+    else
+        debug:always( "Full-Sync (current and connected realms): %sOFF%s", OPTION_OFF, REGULAR )
+    end
+end
 
 
 local function slashCommandHandler( msg, editbox )
     msg = strlower( msg )
 
-    -- Isolate the specified command's option (e.g. "show" in "/afriends delete show" )
+    -- Isolate the specified command's option (e.g. "show" in "/af delete show" )
     local cmdDelim = strfind( msg, " " )
     local cmdOpt = ""
     if( cmdDelim ) then
         cmdOpt = strlower( strsub( msg, cmdDelim + 1 ) )
     end
 
+    -- Display current state/status for the addon
+    if( startswith( msg, "status" ) ) then
+        outputFriendSnapshotCount( snapshot )
+        outputDeleteStatus( snapshot )
+        outputFullSyncStatus( snapshot )
+        outputDebuggingStatus( debug )
+        return
+
     -- Set the debugging severity level
-    if( startswith( msg, "debug" ) ) then
+    elseif( startswith( msg, "debug" ) ) then
         if( cmdOpt == "show" or cmdOpt == "" ) then
-            debug:always( "Debug level is currently %s.", strupper( debug:getLevel( ) ) )
+            outputDebuggingStatus( debug )
         else
             debug:setLevel( cmdOpt )
             debug:always( "Debug level now %s.", strupper( cmdOpt ) )
@@ -50,25 +110,21 @@ local function slashCommandHandler( msg, editbox )
 
     -- Show the contents of the current snapshot
     elseif( msg == "friends" ) then
-        debug:always( "# of friends in snapshot: %d", snapshot:getNumFriends( ) )
-        debug:always( "--------------------" )
-        snapshot:dumpFriendSnapshot( )
+            outputFriendSnapshotList( snapshot )
+            debug:always( "--------------------" )
+            outputFriendSnapshotCount( snapshot )
         return
 
     -- Control whether the addon deletes stale friends from the friend list or not
     elseif( startswith( msg, "delete" ) ) then
         if( cmdOpt == "show" or cmdOpt == "" ) then
-            if( friendList:isDeletionActive( ) ) then
-                debug:always( "Stale friend deletion enabled." )
-            else
-                debug:always( "Stale friend deletion disabled." )
-            end
+            outputDeleteStatus( snapshot )
         elseif( cmdOpt == "on" or cmdOpt == "true" or cmdOpt == "yes" ) then
-            friendList:enableDeletion( )
-            debug:always( "Stale friend deletion enabled." )
+            snapshot:setDeletion( true )
+            outputDeleteStatus( snapshot )
         elseif( cmdOpt == "off" or cmdOpt == "false" or cmdOpt == "no" ) then
-            friendList:disableDeletion( )
-            debug:always( "Stale friend deletion disabled." )
+            snapshot:setDeletion( false )
+            outputDeleteStatus( snapshot )
         else
             debug:always( "Bad / incomplete command: delete %s", cmdOpt )
         end
@@ -79,74 +135,39 @@ local function slashCommandHandler( msg, editbox )
     -- realms
     elseif( startswith( msg, "fullsync" ) ) then
         if( cmdOpt == "show" or cmdOpt == "" ) then
-            if( friendList:isFullSyncActive( ) ) then
-                debug:always( "Full-Sync is turned ON for the current (and all connected) realms." )
-            else
-                debug:always( "Full-Sync is turned OFF for the current (and all connected) realms." )
-            end
+            outputFullSyncStatus( snapshot )
         elseif( cmdOpt == "on" or cmdOpt == "true" or cmdOpt == "yes") then
-            friendList:enableFullSync( )
-            debug:always( "Full-Sync now ON for the current (and all connected) realms." )
+            snapshot:enableFullSync( )
+            outputFullSyncStatus( snapshot )
         elseif( cmdOpt == "off" or cmdOpt == "false" or cmdOpt == "no" ) then
-            friendList:disableFullSync( )
-            debug:always( "Full-Sync now OFF for the current (and all connected) realms." )
+            snapshot:disableFullSync( )
+            outputFullSyncStatus( snapshot )
         else
             debug:always( "Bad / incomplete command: fyllsync %s", cmdOpt )
-        end
-        return
-
-    -- test of new player object
-    elseif( startswith( msg, "testplayer" ) ) then
-        if( cmdOpt == "new" ) then
-            local someNewPlayer = AF.Player:new( )
-            if( someNewPlayer ) then
-                debug:always( "New player created: name=%s, realm=%s, isLocal=%s",
-                              someNewPlayer.name, someNewPlayer.realm, tostring( someNewPlayer.isLocal ) )
-            else
-                  debug:always( "Player object not created." )
-            end
-        elseif( cmdOpt == "fulz" ) then
-            local someNewPlayer = AF.Player:new( "FULzaMOth" )
-            if( someNewPlayer ) then
-                debug:always( "New player created: name=%s, realm=%s, isLocal=%s",
-                              someNewPlayer.name, someNewPlayer.realm, tostring( someNewPlayer.isLocal ) )
-            else
-                    debug:always( "Player object not created." )
-            end
-        elseif( cmdOpt == "fulzveco" ) then
-            local someNewPlayer = AF.Player:new( "FULzaMOth-theventureco" )
-            if( someNewPlayer ) then
-                debug:always( "New player created: name=%s, realm=%s, isLocal=%s",
-                              someNewPlayer.name, someNewPlayer.realm, tostring( someNewPlayer.isLocal ) )
-            else
-                debug:always( "Player object not created." )
-            end
-        else
-            debug:always( "Bad / incomplete command: testplayer %s", cmdOpt )
         end
         return
     end
 
     -- Unrecognized slashcommand - display help (with fancy colours!)
-    local REGULAR = AF.DBG_REGULAR
-    local COMMAND = AF.DBG_LIME
-    local OPTION  = AF.DBG_CYAN
-    local ARG     = AF.DBG_YELLOW
-    debug:always( "%s/afriends %sdebug %s<%sdebug%s, %sinfo%s, %swarn%s, %serror%s, %salways%s>",
+    debug:always( "%s/af %sstatus%s",
+                   COMMAND, OPTION, REGULAR )
+    debug:always( "     (Displays current settings/status)" )
+    debug:always( "" )
+    debug:always( "%s/af %sdebug %s<%sdebug%s, %sinfo%s, %swarn%s, %serror%s, %salways%s>",
                    COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
     debug:always( "     (Sets the debugging output severity)" )
     debug:always( "" )
-    debug:always( "%s/afriends %sdelete %s<%son%s, %soff%s, %sshow%s>",
+    debug:always( "%s/af %sdelete %s<%son%s, %soff%s, %sshow%s>",
                    COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
     debug:always( "     (Show or set whether the addon deletes stale friends)" )
     debug:always( "" )
-    debug:always( "%s/afriends %sfullsync %s<%son%s, %soff%s, %sshow%s>",
+    debug:always( "%s/af %sfullsync %s<%son%s, %soff%s, %sshow%s>",
                    COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
     debug:always( "     (Show or set whether the addon ignores the 'delete' option" )
     debug:always( "      and instead deletes ALL stale friends for the current" )
     debug:always( "      and all connected realms" )
     debug:always( "" )
-    debug:always( "%s/afriends %sfriends%s",
+    debug:always( "%s/af %sfriends%s",
                    COMMAND, OPTION, REGULAR )
     debug:always( "     (Display contents of the current friends snapshot)" )
     return
@@ -191,7 +212,7 @@ end
 
 
 local function setupSlashCommands( )
-    SLASH_ALLFRIENDS1 = "/afriends"
+    SLASH_ALLFRIENDS1 = "/af"
     SlashCmdList["ALLFRIENDS"] = slashCommandHandler
 end
 

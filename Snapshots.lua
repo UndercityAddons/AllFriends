@@ -2,7 +2,7 @@
      File Name           :     Snapshots.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-05 09:51]
+     Last Modified       :     [2019-02-05 10:15]
      Description         :     Snapshots class for the WoW addon AllFriends
 
 This module of AllFriends implements a Snapshot class, responsible for all
@@ -170,34 +170,6 @@ local function addFriend( self, playerObj )
 end
 
 
---- class private method "isDeletionActive"
--- Indicates whether or not the addon will delete stale friends from the
--- friend list.
--- @return  true    Deletions will be done.
--- @return  false   Deletions will not be done.
-local function isDeletionActive( self )
-    return self.doDeletions
-end
-
-
---- class private method "setDeletion"
--- Sets the deletion flag for the current player in the snapshot to true / false
--- as specified.
--- @param   true / false    Set the deletion flag accordingly
--- @return  true            Deletion flag set
--- @return  false           Error setting flag
-local function setDeletion( self, deleteFlag )
-
-    -- Parameter validation
-    if( deleteFlag == nil or type( deleteFlag ) ~= "boolean" ) then
-        debug:info( "Specified parameter nil or not boolean - not setting Deletion flag." )
-        return false
-    end
-    self.doDeletions = deleteFlag
-    return true
-end
-
-
 --- Class public-method "getNumFriends"
 --- Class constructor "new"
 -- Creates a new Friends object and sets initial state.
@@ -224,6 +196,34 @@ function AF.Snapshot:new( )
     snapshotObj.tConnectedRealms   = getConnectedRealms( )
 
     return snapshotObj
+end
+
+
+--- class public method "isDeletionActive"
+-- Indicates whether or not the addon will delete stale friends from the
+-- friend list.
+-- @return  true    Deletions will be done.
+-- @return  false   Deletions will not be done.
+function AF.Snapshot:isDeletionActive( )
+    return self.doDeletions
+end
+
+
+--- class public method "setDeletion"
+-- Sets the deletion flag for the current player in the snapshot to true / false
+-- as specified.
+-- @param   true / false    Set the deletion flag accordingly
+-- @return  true            Deletion flag set
+-- @return  false           Error setting flag
+function AF.Snapshot:setDeletion( deleteFlag )
+
+    -- Parameter validation
+    if( deleteFlag == nil or type( deleteFlag ) ~= "boolean" ) then
+        debug:info( "Specified parameter nil or not boolean - not setting Deletion flag." )
+        return false
+    end
+    self.doDeletions = deleteFlag
+    return true
 end
 
 
@@ -274,7 +274,7 @@ function AF.Snapshot:refreshFriendsSnapshot( friendListObj )
         -- group.
         if( self:isFullSyncActive() ) then
             debug:debug( "FullSync active - stale friend %s not stashed into snapshot.", tFriendsTmp[i]:getKey( ) )
-        elseif( isDeletionActive( self ) and not getSkipDelete( self, tFriendsTmp[i]:getKey( ) ) ) then
+        elseif( self:isDeletionActive( ) and not getSkipDelete( self, tFriendsTmp[i]:getKey( ) ) ) then
             debug:debug( "Deletions active and stale friend not flagged - not stashed into snapshot.",
                          tFriendsTmp[i]:getKey( ) )
         else
@@ -348,7 +348,7 @@ function AF.Snapshot:restoreFriendsSnapshot( friendListObj )
         if( findFriend( self, playerObj ) ) then
             debug:debug( "Friend %s not stale - doing nothing.", playerKey )
         else
-            if( not self:isFullSyncActive( ) and not isDeletionActive( self ) ) then
+            if( not self:isFullSyncActive( ) and not self:isDeletionActive( ) ) then
             debug:debug( "Friend %s stale but fullSync and doDeletions are off - doing nothing", playerKey )
             else
                 debug:debug( "Friend %s stale and fullSync or doDeletions are on - removing.", playerKey )
@@ -410,7 +410,7 @@ function AF.Snapshot:loadDataFromGlobal( )
 
     local myName = strlower( UnitName( "player" ) ) .. "-" .. self.Realm
     if( AllFriendsData.doDeletions ~= nil and AllFriendsData.doDeletions[ myName ] ~= nil ) then
-        setDeletion( self, AllFriendsData.doDeletions[ myName ] )
+        self:setDeletion( AllFriendsData.doDeletions[ myName ] )
     end
 
     -- Iterate through the various realm-groups (i.e. sets of connected realms)
@@ -465,7 +465,7 @@ function AF.Snapshot:saveDataToGlobal( )
     AllFriendsData = AllFriendsData or {}
 
     AllFriendsData.doDeletions = AllFriendsData.doDeletions or {}
-    AllFriendsData.doDeletions[myName] = isDeletionActive( self )
+    AllFriendsData.doDeletions[myName] = self:isDeletionActive( )
 
     -- If the SavedVariable contains any pre-existing realm-groups (e.g. sets
     -- of connected realms) then iterate them to find one that contains the
