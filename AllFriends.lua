@@ -2,71 +2,127 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-01-23 10:33]
+     Last Modified       :     [2019-02-03 23:31]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
+
+-- WoW API treats LUA modules as "functions", and passes them two arguments:
+--  1. The name of the addon, and
+--  2. A table containing the globals for that addon.
+-- Using these lets all modules within an addon share the addon's global information.
 local addonName, AF = ...
 
 AF.addonVersion = "0.1.0"
 
 
---- Helper function "startswith"
--- Identifies if specified string starts with the specified pattern
--- @param   someString  The string to check
--- @param   start       The pattern to search for at start of string
--- @return  true        Pattern found
--- @return  false       Pattern not found
-local function startswith( someStr, start )
-    local res = string.sub( someStr, 0, #start ) == start
-    debug:debug( "Is '%s' (len. %d) at start of '%s' (len. %d): %s", start, #start, someStr, #someStr, tostring( res ) )
-    return res
-end
-
---- Helper function "endswith"
--- Identifies if specified string ends with the specified pattern
--- @param   someString  The string to check
--- @param   ending      The pattern to search for at end of string
--- @return
-local function endswith( someStr, ending )
-    local res = ending == "" or someStr:sub( -#ending ) == ending
-    debug:debug( "res = '%s' for '%s' (len. %d) at end of '%s' (len. %d)", res, start, #start, someStr, #someStr )
-    return res
-end
+-- Some local overloads to optimize performance (i.e. stop looking up these
+-- standard functions every single time they are called, and instead refer to
+-- them by local variables.
+local string            = string
+local strfind           = string.find
+local strlower          = string.lower
+local strupper          = string.upper
+local strsub            = string.sub
+local tostring          = AF._tostring
+local startswith        = AF.startswith
 
 
 local function slashCommandHandler( msg, editbox )
-    msg = string.lower( msg )
+    msg = strlower( msg )
+
+    -- Isolate the specified command's option (e.g. "show" in "/afriends delete show" )
+    local cmdDelim = strfind( msg, " " )
+    local cmdOpt = ""
+    if( cmdDelim ) then
+        cmdOpt = strlower( strsub( msg, cmdDelim + 1 ) )
+    end
 
     -- Set the debugging severity level
     if( startswith( msg, "debug" ) ) then
-        p = string.find( msg, " " )
-        debug:setLevel( string.upper( string.sub( msg, p + 1 ) ) )
+        if( cmdOpt == "show" or cmdOpt == "" ) then
+            debug:always( "Debug level is currently %s.", strupper( debug:getLevel( ) ) )
+        else
+            debug:setLevel( cmdOpt )
+            debug:always( "Debug level now %s.", strupper( cmdOpt ) )
+        end
         return
 
     -- Show the contents of the current snapshot
     elseif( msg == "friends" ) then
-        friends:dumpFriendSnapshot( )
+        debug:always( "# of friends in snapshot: %d", snapshot:getNumFriends( ) )
+        debug:always( "--------------------" )
+        snapshot:dumpFriendSnapshot( )
         return
-    
+
     -- Control whether the addon deletes stale friends from the friend list or not
     elseif( startswith( msg, "delete" ) ) then
-        p = string.find( msg, " " )
-        delCmd = string.lower( string.sub( msg, p + 1 ) )
-        if( delCmd == "show" ) then
-            if( friends:isDeletionActive( ) ) then
+        if( cmdOpt == "show" or cmdOpt == "" ) then
+            if( friendList:isDeletionActive( ) ) then
                 debug:always( "Stale friend deletion enabled." )
             else
                 debug:always( "Stale friend deletion disabled." )
             end
-        elseif( delCmd == "on" ) then
-            friends:enableDeletion( )
+        elseif( cmdOpt == "on" or cmdOpt == "true" or cmdOpt == "yes" ) then
+            friendList:enableDeletion( )
             debug:always( "Stale friend deletion enabled." )
-        elseif( delCmd == "off" ) then
-            friends:disableDeletion( )
+        elseif( cmdOpt == "off" or cmdOpt == "false" or cmdOpt == "no" ) then
+            friendList:disableDeletion( )
             debug:always( "Stale friend deletion disabled." )
         else
-            debug:always( "Unrecognized command: delete %s", delCmd )
+            debug:always( "Bad / incomplete command: delete %s", cmdOpt )
+        end
+        return
+
+    -- Control whether or not self.doDelete is ignored and instead stale-friend
+    -- deletions are done for ALL characters on the current (and all connected)
+    -- realms
+    elseif( startswith( msg, "fullsync" ) ) then
+        if( cmdOpt == "show" or cmdOpt == "" ) then
+            if( friendList:isFullSyncActive( ) ) then
+                debug:always( "Full-Sync is turned ON for the current (and all connected) realms." )
+            else
+                debug:always( "Full-Sync is turned OFF for the current (and all connected) realms." )
+            end
+        elseif( cmdOpt == "on" or cmdOpt == "true" or cmdOpt == "yes") then
+            friendList:enableFullSync( )
+            debug:always( "Full-Sync now ON for the current (and all connected) realms." )
+        elseif( cmdOpt == "off" or cmdOpt == "false" or cmdOpt == "no" ) then
+            friendList:disableFullSync( )
+            debug:always( "Full-Sync now OFF for the current (and all connected) realms." )
+        else
+            debug:always( "Bad / incomplete command: fyllsync %s", cmdOpt )
+        end
+        return
+
+    -- test of new player object
+    elseif( startswith( msg, "testplayer" ) ) then
+        if( cmdOpt == "new" ) then
+            local someNewPlayer = AF.Player:new( )
+            if( someNewPlayer ) then
+                debug:always( "New player created: name=%s, realm=%s, isLocal=%s",
+                              someNewPlayer.name, someNewPlayer.realm, tostring( someNewPlayer.isLocal ) )
+            else
+                  debug:always( "Player object not created." )
+            end
+        elseif( cmdOpt == "fulz" ) then
+            local someNewPlayer = AF.Player:new( "FULzaMOth" )
+            if( someNewPlayer ) then
+                debug:always( "New player created: name=%s, realm=%s, isLocal=%s",
+                              someNewPlayer.name, someNewPlayer.realm, tostring( someNewPlayer.isLocal ) )
+            else
+                    debug:always( "Player object not created." )
+            end
+        elseif( cmdOpt == "fulzveco" ) then
+            local someNewPlayer = AF.Player:new( "FULzaMOth-theventureco" )
+            if( someNewPlayer ) then
+                debug:always( "New player created: name=%s, realm=%s, isLocal=%s",
+                              someNewPlayer.name, someNewPlayer.realm, tostring( someNewPlayer.isLocal ) )
+            else
+                debug:always( "Player object not created." )
+            end
+        else
+            debug:always( "Bad / incomplete command: testplayer %s", cmdOpt )
         end
         return
     end
@@ -83,6 +139,12 @@ local function slashCommandHandler( msg, editbox )
     debug:always( "%s/afriends %sdelete %s<%son%s, %soff%s, %sshow%s>",
                    COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
     debug:always( "     (Show or set whether the addon deletes stale friends)" )
+    debug:always( "" )
+    debug:always( "%s/afriends %sfullsync %s<%son%s, %soff%s, %sshow%s>",
+                   COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
+    debug:always( "     (Show or set whether the addon ignores the 'delete' option" )
+    debug:always( "      and instead deletes ALL stale friends for the current" )
+    debug:always( "      and all connected realms" )
     debug:always( "" )
     debug:always( "%s/afriends %sfriends%s",
                    COMMAND, OPTION, REGULAR )
@@ -107,10 +169,10 @@ local function initialOnUpdateHandler( self, elapsed )
     -- If the friend-list contains players, then we need to check availability
     -- of the friend list because we may need to remove stale entries.  Do not
     -- proceed with the snapshot-restore until the list becomes available.
-    if( friends:countFriendList( ) == 0 or friends:isFriendListAvailable( ) == true ) then
+    if( friendList:countFriendList( ) == 0 or friendList:isFriendListAvailable( ) == true ) then
         frame:SetScript( "OnUpdate", nil )
         debug:debug( "OnUpdate disabled." )
-        friends:restoreSnapshot( )
+        snapshot:restoreFriendsSnapshot( friendList )
         frame:RegisterEvent( "PLAYER_LOGOUT" )
 
         -- For FRIENDLIST_UPDATE, delay a bit before registering the event to
@@ -127,6 +189,14 @@ local function initialOnUpdateHandler( self, elapsed )
     end
 end
 
+
+local function setupSlashCommands( )
+    SLASH_ALLFRIENDS1 = "/afriends"
+    SlashCmdList["ALLFRIENDS"] = slashCommandHandler
+end
+
+
+
 -- See the various frame:RegisterEvent( ... ) statements below for triggering info
 local function EventHandler( self, event, ... )
 
@@ -137,7 +207,7 @@ local function EventHandler( self, event, ... )
     if( event == "PLAYER_LOGIN" ) then
         setupSlashCommands( )
         debug:loadDataFromGlobal( )
-        friends:loadDataFromGlobal( )
+        snapshot:loadDataFromGlobal( )
         debug:always("v%s initialized.", AF.addonVersion )
 
         frame:SetScript( "OnUpdate", initialOnUpdateHandler )
@@ -147,7 +217,7 @@ local function EventHandler( self, event, ... )
     --        SavedVariables are saved.  Fires after PLAYER_LEAVING_WORLD.
     elseif( event == "PLAYER_LOGOUT" ) then
         debug:saveDataToGlobal( )
-        friends:saveDataToGlobal( )
+        snapshot:saveDataToGlobal( )
 
     -- Fires whenever: - You login
     --                 - Opening friends window (twice?)
@@ -156,8 +226,8 @@ local function EventHandler( self, event, ... )
     --                 - Adding/removing friends, and
     --                 - Friends come online or go offline
     elseif( event == "FRIENDLIST_UPDATE" ) then
-        friends:takeSnapshot( )
-        debug:debug( "Took snapshot of friends-list - contains %d friends.", friends:countFriendsInSnapshot( ) )
+        snapshot:refreshFriendsSnapshot( friendList )
+        debug:debug( "Took snapshot of friends-list - contains %d friends.", snapshot:getNumFriends( ) )
 
     -- Catchall for any registered but unhandled events
     else
@@ -166,17 +236,11 @@ local function EventHandler( self, event, ... )
 end
 
 
-function setupSlashCommands( )
-    SLASH_ALLFRIENDS1 = "/afriends"
-    SlashCmdList["ALLFRIENDS"] = slashCommandHandler
-end
-
-
-
-debug = AF.Debugging_mt:new( )          
+debug = AF.Debugging:new( )
 debug:setLevel( ERROR )                  -- Default until persistent state loaded from Global
 
-friends = AF.Friends_mt:new( )          
+friendList = AF.Friends:new( )
+snapshot = AF.Snapshot:new( )
 
 
 -- There seems to be issues with the player's friend-list not being available at
