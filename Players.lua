@@ -2,7 +2,7 @@
      File Name           :     Players.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-04 10:12]
+     Last Modified       :     [2019-02-07 11:25]
      Description         :     PLayer class for the WoW addon AllFriends
 
 This module of AllFriends implements a Player class, representing a Player
@@ -14,7 +14,8 @@ and all the things you can do with/to them.
 --  1. The name of the addon, and
 --  2. A table containing the globals for that addon.
 -- Using these lets all modules within an addon share the addon's global information.
-local addonName, AF = ...
+--local addonName, AF = ...
+local addonName, AF_G = ...
 
 
 -- Some local overloads to optimize performance (i.e. stop looking up these
@@ -24,13 +25,19 @@ local string            = string
 local strlower          = string.lower
 local strsplit          = strsplit
 local type              = type
-local tostring          = AF._tostring
-local getLocalizedRealm = AF.getLocalizedRealm
 
---- Tables for Class and metatable (stored within the addon's globals)
-AF.Player               = {}            -- Class
-AF.Player_mt            = {}            -- Metatable
-AF.Player_mt.__index    = AF.Player     -- Look in the class for undefined methods
+--- Class table
+AF.Player = {
+
+    -- Class data prototypes (i.e. "default" values for new objects
+    ----------------------------------------------------------------------------
+    class       = "player", -- Class identifier
+    doDeletions = false,    -- Delete stale friends from this player's list
+    isLocalFlg  = true,     -- Is player on the local (i.e. current) realm
+    name        = "",       -- Player's name (lowercase)
+    realm       = "",       -- Player's realm (lowercase)
+}
+AF.Player_mt            = { __index = AF.Player}    -- Metatable
 
 
 --- Class constructor "new"
@@ -47,15 +54,7 @@ function AF.Player:new( name )
     local playerObj = {}                        -- New object
     setmetatable( playerObj, AF.Player_mt )     -- Set up the object's metatable
 
-    -- Per-object private Data
-    ----------------------------------------------------------------------------
-    playerObj.name          = ""      -- Player's name (lowercase)
-    playerObj.realm         = ""      -- Player's realm (lowercase)
-    playerObj.isLocalFlg    = true    -- Is player on the local (i.e. current) realm
-    playerObj.doDeletions   = false   -- Delete stale friends from this player's list
-    ----------------------------------------------------------------------------
-
-    -- Per-object initial settings
+    -- Per-object data initialization
     ----------------------------------------------------------------------------
     if( name ~= nil and name ~= "" ) then
         playerObj.name, playerObj.realm = strsplit( "-", name, 2 )
@@ -65,14 +64,16 @@ function AF.Player:new( name )
         else
             playerObj.name = strlower( playerObj.name )
             playerObj.realm = strlower( playerObj.realm )
-            playerObj.isLocalFlg, playerObj.realm = getLocalizedRealm( playerObj.name .. "-" .. playerObj.realm )
+            playerObj.isLocalFlg, playerObj.realm = AF.getLocalizedRealm( playerObj.name .. "-" .. playerObj.realm )
             if( playerObj.realm == "unknown" ) then
                 debug:debug( "No new player object created - specified realm not connected." )
-                return nil  -- don't return new object if unknown realm specified
+                return nil
             end
         end
     end
-    debug:debug( "New player object:  %s", tostring( playerObj ) )
+    ----------------------------------------------------------------------------
+
+    debug:debug( "New player object:  %s", AF._tostring( playerObj ) )
     return playerObj
 end
 
@@ -121,7 +122,7 @@ function AF.Player:setDeletionFlag( setting )
 
     -- Parameter validation
     if( not setting or type( setting ) ~= "boolean" ) then
-        debug:debug( "Invalid setting specified - doDeletions flag unchanged." )
+        debug:warn( "Invalid setting specified - doDeletions flag unchanged." )
         return false
     end
 

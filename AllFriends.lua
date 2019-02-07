@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-05 11:04]
+     Last Modified       :     [2019-02-07 10:35]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -11,7 +11,8 @@
 --  1. The name of the addon, and
 --  2. A table containing the globals for that addon.
 -- Using these lets all modules within an addon share the addon's global information.
-local addonName, AF = ...
+--local addonName, AF = ...
+local addonName, AF_G= ...
 
 AF.addonVersion = "0.1.0"
 
@@ -24,7 +25,6 @@ local strfind           = string.find
 local strlower          = string.lower
 local strupper          = string.upper
 local strsub            = string.sub
-local startswith        = AF.startswith
 
 
 -- Colour definitions for slashcommand output
@@ -91,7 +91,7 @@ local function slashCommandHandler( msg, editbox )
     end
 
     -- Display current state/status for the addon
-    if( startswith( msg, "status" ) ) then
+    if( AF.startswith( msg, "status" ) ) then
         outputFriendSnapshotCount( snapshot )
         outputDeleteStatus( snapshot )
         outputFullSyncStatus( snapshot )
@@ -99,7 +99,7 @@ local function slashCommandHandler( msg, editbox )
         return
 
     -- Set the debugging severity level
-    elseif( startswith( msg, "debug" ) ) then
+    elseif( AF.startswith( msg, "debug" ) ) then
         if( cmdOpt == "show" or cmdOpt == "" ) then
             outputDebuggingStatus( debug )
         else
@@ -116,7 +116,7 @@ local function slashCommandHandler( msg, editbox )
         return
 
     -- Control whether the addon deletes stale friends from the friend list or not
-    elseif( startswith( msg, "delete" ) ) then
+    elseif( AF.startswith( msg, "delete" ) ) then
         if( cmdOpt == "show" or cmdOpt == "" ) then
             outputDeleteStatus( snapshot )
         elseif( cmdOpt == "on" or cmdOpt == "true" or cmdOpt == "yes" ) then
@@ -133,14 +133,14 @@ local function slashCommandHandler( msg, editbox )
     -- Control whether or not self.doDelete is ignored and instead stale-friend
     -- deletions are done for ALL characters on the current (and all connected)
     -- realms
-    elseif( startswith( msg, "fullsync" ) ) then
+    elseif( AF.startswith( msg, "fullsync" ) ) then
         if( cmdOpt == "show" or cmdOpt == "" ) then
             outputFullSyncStatus( snapshot )
         elseif( cmdOpt == "on" or cmdOpt == "true" or cmdOpt == "yes") then
-            snapshot:enableFullSync( )
+            snapshot:setFullSync( true, friendList )
             outputFullSyncStatus( snapshot )
         elseif( cmdOpt == "off" or cmdOpt == "false" or cmdOpt == "no" ) then
-            snapshot:disableFullSync( )
+            snapshot:setFullSync( false, friendList )
             outputFullSyncStatus( snapshot )
         else
             debug:always( "Bad / incomplete command: fyllsync %s", cmdOpt )
@@ -258,7 +258,8 @@ end
 
 
 debug = AF.Debugging:new( )
-debug:setLevel( ERROR )                  -- Default until persistent state loaded from Global
+--debug:setLevel( ERROR )                  -- Default until persistent state loaded from Global
+debug:setLevel( DEBUG )                  -- Default until persistent state loaded from Global
 
 friendList = AF.Friends:new( )
 snapshot = AF.Snapshot:new( )

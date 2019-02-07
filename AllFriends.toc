@@ -6,6 +6,7 @@
 ## Dependencies:
 ## SavedVariables: AllFriendsData
 
+Namespace.lua
 Utils.lua
 Debugging.lua
 Players.lua

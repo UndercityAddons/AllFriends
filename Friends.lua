@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-05 09:47]
+     Last Modified       :     [2019-02-07 11:23]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -13,7 +13,8 @@ snapshots, providing information, etc.
 --]]
 
 
-local addonName, AF = ...
+--local addonName, AF = ...
+local addonName, AF_G = ...
 
 
 -- Some local overloads to optimize performance (i.e. stop looking up these
@@ -22,28 +23,29 @@ local addonName, AF = ...
 local string                = string
 local strgsub               = string.gsub
 local strlower              = string.lower
-local tostring              = AF._tostring
-local getLocalizedRealm     = AF.getLocalizedRealm
 
 
---- Tables for Class and metatable (stored within the addon's globals)
-AF.Friends               = {}            -- Class
-AF.Friends_mt            = {}            -- Metatable
-AF.Friends_mt.__index    = AF.Friends     -- Look in the class for undefined methods
+-- Class table
+AF.Friends = {
+
+    -- Class data prototypes (i.e. "default" values for new objects)
+    ----------------------------------------------------------------------------
+    class   =  "friends",   -- Class identifier
+}
+AF.Friends_mt = { __index = AF.Friends }    -- Class metatable
 
 
 --- Class constructor "new"
 -- Creates a new Friends object and sets initial state.
 -- @return          The newly constructed and initialized Friends object
-function AF.Friends:new( )
-    local friendsObj = {}                       -- New object
+function AF.Friends:new( friendsObj )
+
+    local friendsObj = friendsObj or {}         -- New object
     setmetatable( friendsObj, AF.Friends_mt )   -- Set up the object's metatable
 
-    -- Per-object private Data
+    -- Per-object data initialization
     ----------------------------------------------------------------------------
 
-    ----------------------------------------------------------------------------
-    -- Per-object initial settings
     ----------------------------------------------------------------------------
 
     return friendsObj
@@ -60,10 +62,11 @@ function AF.Friends:getFriends( )
     for i = 1, numServerFriends do
         friendInfo = C_FriendList.GetFriendInfoByIndex( i )
         playerName = strlower( strgsub( friendInfo.name, "-.+$", "" ) )
-        _, playerRealm = getLocalizedRealm( friendInfo.name )
+        _, playerRealm = AF.getLocalizedRealm( friendInfo.name )
+        debug:debug( "Requesting new object for [%s]", playerName .. "-" .. playerRealm )
         tFriendList[i] = AF.Player:new( playerName .. "-" .. playerRealm )
         debug:debug( "tFriendList[%d]  name=%s realm=%s local=%s",
-                     i, tFriendList[i]:getName(), tFriendList[i]:getRealm(), tostring( tFriendList[i]:isLocal() ) )
+                     i, tFriendList[i]:getName(), tFriendList[i]:getRealm(), AF._tostring( tFriendList[i]:isLocal() ) )
     end
     return tFriendList
 end
