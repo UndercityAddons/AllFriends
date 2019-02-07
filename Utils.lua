@@ -2,7 +2,7 @@
      File Name           :     Utils.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-03 22:00]
+     Last Modified       :     [2019-02-07 10:42]
      Description         :     General / miscellaneous utilities for the WoW addon 'AllFriends'
 --]]
 
@@ -11,7 +11,8 @@
 --  1. The name of the addon, and
 --  2. A table containing the globals for that addon.
 -- Using these lets all modules within an addon share the addon's global information.
-local addonName, AF = ...
+--local addonName, AF = ...
+local addonName, AF_G = ...
 
 
 -- Some local overloads to optimize performance (i.e. stop looking up these
@@ -28,6 +29,7 @@ local table                 = table
 local tblinsert             = table.insert
 local tonumber              = tonumber
 local origtostring          = tostring
+local tostring              = AF._tostring
 local type                  = type
 
 
@@ -143,24 +145,17 @@ function AF.getConnectedRealms( )
     -- tConnectedRealms must persist across multiple function calls, so it is
     -- delcared at file-level scope above...
 
-    -- If tConnectedRealms hasn't already been constructed then do that now
-    if( tConnectedRealms[1] == nil ) then
-        -- Create table and count of connected (plus current) realms
+    -- If tConnectedRealms hasn't already been constructed then do that now.  If
+    -- there are no connected realms then at-least include the local realm.
+    if( #tConnectedRealms < 1 ) then
         tConnectedRealms = GetAutoCompleteRealms( )
-        local numConnectedRealms = #tConnectedRealms
-
-        -- If not connected, at-least insert the local realm name
-        if( numConnectedRealms < 1 ) then
+        if( #tConnectedRealms < 1 ) then
             tConnectedRealms[1] = AF.getCurrentRealm( )
-            numConnectedRealms = 1
         end
 
-        -- Add a set of reverse entries to the table, allowing for bi-directional
-        -- keying by either numeric index or realm-name.  While we're at it,
-        -- change the realm names to all-lowercase.
-        for i = 1, numConnectedRealms do
+        -- Normalize to all-lowercase
+        for i = 1, #tConnectedRealms do
             tConnectedRealms[i] = strlower( tConnectedRealms[i] )
-            tConnectedRealms[tConnectedRealms[i]] = i
         end
     end
     return tConnectedRealms
@@ -222,7 +217,8 @@ function AF.getLocalizedRealm( nameAndRealm )
     -- Handle case where specified realm is non-local and the local realm is
     -- not connected to any others.  Note AF.getConnectedRealms( ) returns
     -- at-least one realm in the table - the local realm.
-    if( tConnectedRealmList[2] == nil ) then
+    debug:debug( "#tConnectedRealmList: %d", #tConnectedRealmList )
+    if( #tConnectedRealmList < 2 ) then
         debug:debug( "Specified realm non-local, local realm is not connected." )
         return false, "unknown"
     end
