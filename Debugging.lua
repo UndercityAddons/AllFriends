@@ -2,7 +2,7 @@
      File Name           :     Debugging.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-03 19:16]
+     Last Modified       :     [2019-02-07 11:21]
      Description         :     Debugging facility for the WoW addon AllFriends
 --]]
 
@@ -28,7 +28,8 @@ debug:log( ERROR, You can also use debug:log() to specify the msg severity manua
 --  1. The name of the addon, and
 --  2. A table containing the globals for that addon.
 -- Using these lets all modules within an addon share the addon's global information.
-local addonName, AF = ...
+--local addonName, AF = ...
+local addonName, AF_G = ...
 
 
 -- Some local overloads to optimize performance (i.e. stop looking up these
@@ -36,18 +37,21 @@ local addonName, AF = ...
 -- them by local variables.
 local select        = select
 local string        = string
+local strfind       = string.find
 local strformat     = string.format
+local strmatch      = string.match
 local strupper      = string.upper
-local tostring      = AF._tostring
 local type          = type
 
 
+
 -- Debugging levels (increasing severity)
-DEBUG     = "DEBUG"   -- Highly detailed/verbose information
-INFO      = "INFO"    -- Informative information
-WARN      = "WARN"    -- Warnings about unexpected conditions/results
-ERROR     = "ERROR"   -- Errors that will break things
-ALWAYS    = "ALWAYS"  -- Output that should be shown unconditionally
+TRACE   = "TRACE"   -- Flow tracing (function entry/exit, etc)
+DEBUG   = "DEBUG"   -- Highly detailed/verbose information
+INFO    = "INFO"    -- Informative information
+WARN    = "WARN"    -- Warnings about unexpected conditions/results
+ERROR   = "ERROR"   -- Errors that will break things
+ALWAYS  = "ALWAYS"  -- Output that should be shown unconditionally
 
 
 -- COLOR CODES (can be used within debug messages)
@@ -70,22 +74,27 @@ AF.DBG_WHITE   = "\124cffffffff"
 AF.DBG_REGULAR = "\124r"
 
 
+-- Class table
+AF.Debugging = {
+
+    -- Class data prototypes (i.e. "default" values for new objects)
+    ----------------------------------------------------------------------------
+    class   = "debugging",  -- Class identifier
+    order   = 0,            -- Initialized by debugObj:setLevel() below
+    level   = 0,            -- Initialized by debugObj:setLevel() below
+}
+AF.Debugging_mt = { __index = AF.Debugging }    -- Class metatable
+
 -- Create a table of debugging level names that are indexed by their increasing
 -- severity.  Then add another set of elements to the same table that are the
 -- severities (in increasing order) referring to the level names.  This way the
 -- same table can be used to look up names (to get severities) or severities (to
 -- get names).
-local LEVELLIST     = { DEBUG, INFO, WARN, ERROR, ALWAYS }
+local LEVELLIST     = { TRACE, DEBUG, INFO, WARN, ERROR, ALWAYS }
 local MAXLEVELS     = #LEVELLIST
 for i = 1, MAXLEVELS do             -- Create an order to the debug levels
     LEVELLIST[LEVELLIST[i]] = i
 end
-
-
---- Tables for Class and metatable (stored within the addon's globals)
-AF.Debugging            = {}            -- Class
-AF.Debugging_mt         = {}            -- Metatable
-AF.Debugging_mt.__index = AF.Debugging  -- Look in the class for undefined methods
 
 
 --- Class private method "logMsg"
@@ -95,39 +104,62 @@ AF.Debugging_mt.__index = AF.Debugging  -- Look in the class for undefined metho
 local function logMsg( level, format, ... )
     local formatType = type( format )
 
-    local colourizedAddonName = strformat( "\124cffe900ff%s\124r", addonName )
+--    DEFAULT_CHAT_FRAME:AddMessage( AF._tostring( debugstack( 0, 10, 10 ) ) )
+
+    local prefix
+    if( level ~= TRACE and level ~= DEBUG ) then
+        prefix = strformat( "%s%s%s", AF.DBG_MAGENTA, addonName, AF.DBG_REGULAR )
+    else
+        prefix = strformat( "%s%s.lua%s", AF.DBG_MAGENTA, addonName, AF.DBG_REGULAR )
+        local fileName = ""
+        local funcName = ""
+            if( strfind( debugstack( 3, 2, 0 ), "`.+'" ) ~= nil ) then
+
+                local fileFilter = strformat( "^.-%s\\(.-):.-:", addonName )
+                fileName = strmatch( debugstack( 3, 2, 0 ), fileFilter )
+                funcName = strmatch( debugstack( 3, 2, 0 ), "^.-`(.-)'" )
+            end
+        if( funcName ~= "" ) then
+            prefix = strformat( "%s%s%s\\%s%s()%s",
+                                AF.DBG_MAGENTA, fileName, AF.DBG_REGULAR, AF.DBG_YELLOW, funcName, AF.DBG_REGULAR )
+        else
+            prefix = strformat( "%s%s\\<%smain code%s>", prefix, AF.DBG_REGULAR, AF.DBG_YELLOW, AF.DBG_REGULAR )
+        end
+    end
+
 
     if( formatType == "string" ) then
         if( select( "#", ... ) > 0 ) then
             local status, msg = pcall( strformat, format, ... )
             if( status ) then
-                DEFAULT_CHAT_FRAME:AddMessage( strformat( "%s: %s", colourizedAddonName, msg ) )
+                DEFAULT_CHAT_FRAME:AddMessage( strformat( "%s: %s", prefix, msg ) )
                 return
             else
-                DEFAULT_CHAT_FRAME:AddMessage( colourizedAddonName  .. ": Error formatting debug msg: " .. msg )
+                DEFAULT_CHAT_FRAME:AddMessage( prefix .. ": Error formatting debug msg: " .. msg )
                 return
             end
         else
-            DEFAULT_CHAT_FRAME:AddMessage( colourizedAddonName .. ": " .. format )
+            DEFAULT_CHAT_FRAME:AddMessage( prefix .. ": " .. format )
             return
         end
     elseif( formatType == 'function' ) then
         -- format should be a callable function which returns the message to be output
-        DEFAULT_CHAT_FRAME:AddMessage( colourizedAddonName .. ": " .. format( ... ) )
+        DEFAULT_CHAT_FRAME:AddMessage( prefix .. ": " .. format( ... ) )
         return
     end
     -- format is neither a string nor a function; Just call tostring() on it
-    DEFAULT_CHAT_FRAME:AddMessage( colourizedAddonName .. ": " .. tostring( format) )
+    DEFAULT_CHAT_FRAME:AddMessage( prefix .. ": " .. AF._tostring( format) )
     return
 end
 
 
 --- Class private-methods "<various methods>"
 -- Proxy functions for each debug level listed in LEVELLIST, all stored within a table
-local levelFunctions = {}
+--local levelFunctions = {}
+AF.Debugging.levelFunctions = {}
 for i = 1, MAXLEVELS  do
     local level = LEVELLIST[i]
-    levelFunctions[i] = function( self, ... )
+    AF.Debugging.levelFunctions[i] = function( self, ... )
         return logMsg( level, ... )
     end
 end
@@ -142,22 +174,18 @@ end
 --- Class constructor "new"
 -- Creates a new debugging object and sets initial debugging state
 -- @return          The newly constructed and initialized debugging object
-function AF.Debugging:new( )
-    local debugObj = {}                         -- New object
-    setmetatable( debugObj, AF.Debugging_mt )   -- Set up the object's metatable
+function AF.Debugging:new( debugObj )
 
-    -- Per-object private Data
-    ----------------------------------------------------------------------------
-    debugObj.order    = 0    -- gets initialized by call to self:setLevel() below
-    debugObj.level    = 0    -- gets initialized by call to self:setLevel() below
-    ----------------------------------------------------------------------------
+    local debugObj = debugObj or {}             -- Create object if caller doesn't provide one
+    setmetatable( debugObj, AF.Debugging_mt )   -- Set the class to be the object's
 
-    -- Per-object initial settings
+    -- Per-object data initialization
     ----------------------------------------------------------------------------
     debugObj:setLevel( WARN )
     ----------------------------------------------------------------------------
 
-    return debugObj     -- Pass object's reference back to caller
+    return debugObj
+
 end
 
 
@@ -169,7 +197,7 @@ end
 function AF.Debugging:setLevel( level )
     local order = LEVELLIST[strupper( level )]
     if( order == nil ) then
-        debug:error( "Undefined debug level [%s]; ignoring.", tostring( level ) )
+        debug:error( "Undefined debug level [%s]; ignoring.", AF._tostring( level ) )
         return false
     else
         if( self.level ~= level ) then
@@ -180,7 +208,7 @@ function AF.Debugging:setLevel( level )
         for i = 1, MAXLEVELS do
             local name = LEVELLIST[i]:lower( )
             if( i >= order ) then
-                self[name] = levelFunctions[i]
+                self[name] = AF.Debugging.levelFunctions[i]
             else
                 self[name] = disableLevel
             end
@@ -205,7 +233,7 @@ end
 function AF.Debugging:log( level, ... )
     local order = LEVELLIST[level]
     if( order == nil ) then
-        debug:error( "log() failed - Undefined debug level [%s].", tostring( level ) )
+        debug:error( "log() failed - Undefined debug level [%s].", AF._tostring( level ) )
     else
         if( order < self.order ) then
             return
@@ -230,7 +258,9 @@ function AF.Debugging:loadDataFromGlobal( )
         debug:debug( "No SavedVariable container table found - doing nothing." )
         return false
     end
-    self:setLevel( AllFriendsData.DebugLevel )
+    if( AllFriendsData.DebugLevel ) then
+        self:setLevel( AllFriendsData.DebugLevel )
+    end
     return true
 end
 
