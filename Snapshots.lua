@@ -2,7 +2,7 @@
      File Name           :     Snapshots.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-09 16:32]
+     Last Modified       :     [2019-02-09 17:23]
      Description         :     Snapshots class for the WoW addon AllFriends
 
 This module of AllFriends implements a Snapshot class, responsible for all
@@ -237,6 +237,7 @@ function AF.findPlayerGlobals( self, playerKey )
 
     -- Initialize Addon SavedVariable if it doesn't already exist
     AllFriendsData = AllFriendsData or {}
+    AllFriendsData.RealmGroups = AllFriendsData.RealmGroups or {}
 
     -- Locate the doDeletions table or create a new one
     ---------------------------------------------------------------------------
@@ -250,6 +251,7 @@ function AF.findPlayerGlobals( self, playerKey )
     while( AllFriendsData.RealmGroups[gIndex] ~= nil ) do
         debug:debug( "gIndex loop at [%d]", gIndex )
         local curRealmGroup = AllFriendsData.RealmGroups[gIndex]
+        curRealmGroup.realmList = curRealmGroup.realmList or {}
 
         -- Check if the current realm-group includes the current player's realm
         local rIndex = 1
