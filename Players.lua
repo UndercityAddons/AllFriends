@@ -2,7 +2,7 @@
      File Name           :     Players.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-07 11:25]
+     Last Modified       :     [2019-02-09 01:48]
      Description         :     PLayer class for the WoW addon AllFriends
 
 This module of AllFriends implements a Player class, representing a Player
@@ -64,7 +64,7 @@ function AF.Player:new( name )
         else
             playerObj.name = strlower( playerObj.name )
             playerObj.realm = strlower( playerObj.realm )
-            playerObj.isLocalFlg, playerObj.realm = AF.getLocalizedRealm( playerObj.name .. "-" .. playerObj.realm )
+            playerObj.isLocalFlg, playerObj.realm = AF:getLocalizedRealm( playerObj.name .. "-" .. playerObj.realm )
             if( playerObj.realm == "unknown" ) then
                 debug:debug( "No new player object created - specified realm not connected." )
                 return nil
@@ -131,7 +131,7 @@ function AF.Player:setDeletionFlag( setting )
 end
 
 
--- class public method "getDeletions"
+--- class public method "getDeletions"
 -- Returns the doDeletions flag for this player, which indicates whether stale
 -- friends should be removed from their friend list or not.
 -- @return  true        doDeletions flag set to be active.
@@ -140,6 +140,14 @@ function AF.Player:getDeletionFlag( )
     return( self.doDeletions )
 end
 
+--- Class public method "chkType"
+-- Asserts whether the specified class ID matches the ID of this class
+-- @param   wantedType  Class ID to assert against this class's ID
+-- @return  true        Returned of the specified class ID matches this class's ID
+-- @return <error raised by the assert() if the IDs don't match>
+function AF.Player:chkType( wantedType )
+    return assert( self.class == wantedType )
+end
 
 
 -- vim: autoindent tabstop=4 shiftwidth=4 softtabstop=4 expandtab

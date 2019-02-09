@@ -2,7 +2,7 @@
      File Name           :     Utils.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-07 10:42]
+     Last Modified       :     [2019-02-09 02:12]
      Description         :     General / miscellaneous utilities for the WoW addon 'AllFriends'
 --]]
 
@@ -27,30 +27,16 @@ local strgsub               = string.gsub
 local strlower              = string.lower
 local table                 = table
 local tblinsert             = table.insert
+local tblsort               = table.sort
 local tonumber              = tonumber
 local origtostring          = tostring
-local tostring              = AF._tostring
 local type                  = type
 
 
 -- Table of connected realms.  Declared at file-level scope to try and improve
 -- the chances of it remaining persistent until logout.
---
--- NOTE: The table is bi-directionally indexed.  The 1st half of the table
---       contains a numerically indexed list of connected realms (including the
---       local realm).  The 2nd half of the table contains those realms as keys,
---       with their values being their index into the 1st half of the table.
---       E.g:   tConnectedRealms = {
---                                   [1]                = "maelstrom",
---                                   [2]                = "theventureco",
---                                   [3]                = "lightninghoof",
---                                   ["maelstrom"]      = 1,
---                                   ["theventureco"]   = 2,
---                                   ["lightninghoof"]  = 3,
---                                 }
--- So, when iterating through the table by index, only iterate the 1st half of
--- the table.
-local tConnectedRealms = {}
+local tConnectedRealms   = { "empty" }
+local numConnectedRealms = 0
 
 
 --- Helper function "startswith"
@@ -97,7 +83,7 @@ function AF._tostring( value )
                 tblinsert( auxTable, AF._tostring( key ) )
             end
         end
-        table.sort( auxTable )
+        tblsort( auxTable )
 
         someStr = someStr  .. '{'
         local separator = ""
@@ -127,38 +113,64 @@ end
 
 
 --- Helper function "getConnectedRealms"
--- Returns (and if necessary, first creates) a table containing all realms that
--- are connected to the current one (including the current one itself).
--- Since this is unlikely to ever change while logged in, the function attempts
--- to be efficient by only generating the table upon first invocation; there-
--- after it simply returns already-built table.
---
--- NOTE: The table is bi-directionally indexed.  The 1st half of the table
---       contains a numerically indexes list of realms.  The 2nd half of the
---       table contains those realms as keys (with the numeric indices as
---       values). Use ipairs() to iterate through only the numerically-
---       indexed keys.  Use #tablename to get the number of realms.
---
--- @return  Bi-indexed table of local + all connected realms.
+-- Returns a table of the current realm group (i.e. the local realm + all
+-- connected realms), along with the size of the realm-group.
+-- The first time this function is called, it will populate the table and
+-- return it.  Subsequent calls will simply return the same table, since
+-- realm-group composition should never change while a player is online.
+-- @return  tConnectedRealms    Table representing the current realm-group
+-- @return  numConnectedRealms  Number of realms in the realm-group.
 function AF.getConnectedRealms( )
 
     -- tConnectedRealms must persist across multiple function calls, so it is
     -- delcared at file-level scope above...
 
-    -- If tConnectedRealms hasn't already been constructed then do that now.  If
-    -- there are no connected realms then at-least include the local realm.
-    if( #tConnectedRealms < 1 ) then
-        tConnectedRealms = GetAutoCompleteRealms( )
-        if( #tConnectedRealms < 1 ) then
-            tConnectedRealms[1] = AF.getCurrentRealm( )
+    -- If tConnectedRealms has not already been populated with the current
+    -- realm-group (local realm + any connected realms) then load it now.  The
+    -- list provided by the WoW API is numerically indexed. To make lookups
+    -- easier, convert it into a hashed table where the keys are the realm-
+    -- names.  Make all names all-lowercase.
+    if( numConnectedRealms == 0 ) then
+        debug:debug( "tConnectedRealms not populated - initializing now." )
+        wipe( tConnectedRealms )
+        local tmpRealmList = GetAutoCompleteRealms( )
+        if( #tmpRealmList == 0 ) then
+            tblinsert( tConnectedRealms, AF.getCurrentRealm( ) )
+            numConnectedRealms = 1
+        else
+            for i = 1, #tmpRealmList do
+                tblinsert( tConnectedRealms, strlower( tmpRealmList[i] ) )
+            end
+            numConnectedRealms = #tmpRealmList
         end
+    else
+        debug:debug( "tConnectedRealms already populated." )
+    end
 
-        -- Normalize to all-lowercase
-        for i = 1, #tConnectedRealms do
-            tConnectedRealms[i] = strlower( tConnectedRealms[i] )
+    debug:info ("Returning %d realms: [%s]", numConnectedRealms, AF._tostring( tConnectedRealms ) )
+    return tConnectedRealms, numConnectedRealms
+end
+
+
+--- Helper function "isRealmConnected"
+-- Takes the specified realm and returns true/false to indicate whether or not
+-- it is connected to the current realm (or is equal to the local realm).
+-- @param   realmName       Name of realm to check
+-- @return  true            Realm is connected to (or equals) the local realm
+-- @return  false           Realm is not connected to and not equal the local realm
+function AF:isRealmConnected( realmName )
+
+    realmName = strlower( realmName )
+
+    local tRealmGroup, _ = AF.getConnectedRealms( )
+    for _, v in pairs(tRealmGroup) do
+        if( realmName == v ) then
+            debug:info( "Realm %s is connected to our realm.", realmName )
+            return true
         end
     end
-    return tConnectedRealms
+    debug:info( "Realm %s is not connected to our realm." , realmName )
+    return false
 end
 
 
@@ -183,15 +195,18 @@ end
 -- @return  true,  <name of local realm>    Specified realm is nil or empty
 -- @return  false, <name of realm>          Specified realm is non-local but connected
 -- @return  false, "unknown"                Specified realm non-local and not connected
-function AF.getLocalizedRealm( nameAndRealm )
+function AF:getLocalizedRealm( nameAndRealm )
 
+    debug:debug( "Received arg [%s]", nameAndRealm )
     -- Get the name of the local (i.e. current) realm
-    local localRealm = AF.getCurrentRealm( )
+    local localRealm = AF:getCurrentRealm( )
 
     -- Handle cases where specified realm is nil or empty
-    if( not nameAndRealm or nameAndRealm == "" ) then
-        debug:debug( "Specified name/realm is nil or empty - not getting localized realm." )
+    if( nameAndRealm == nil or nameAndRealm == "" ) then
+        debug:info( "Specified name/realm is nil or empty - not getting localized realm." )
         return true, localRealm
+    else
+        nameAndRealm = strlower( nameAndRealm )
     end
 
     -- Isolate on the realm part of the passed name, discarding any player name
@@ -200,38 +215,28 @@ function AF.getLocalizedRealm( nameAndRealm )
     -- names.
     local realmName
     if( strfind( nameAndRealm, "-" ) ) then
-        realmName = strlower( strgsub( strgsub( nameAndRealm, "^.*-", "" ), "%s+", "" ) )
-        debug:debug( "realmName: %s", realmName )
+        realmName = strgsub( strgsub( nameAndRealm, "^.*-", "" ), "%s+", "" )
     else
         realmName = localRealm
     end
+    debug:debug( "Specified realm: %s", realmName )
 
-    -- Handle case where specified realm is the local realm
+    -- Handle case where specified realm equals the local realm
     if( realmName == localRealm ) then
-        debug:debug( "Specified realm == local realm." )
+        debug:debug( "realm %s == local realm.", realmName )
         return true, localRealm
     end
 
-    local tConnectedRealmList = AF.getConnectedRealms( )
+    local tConnectedRealmList, numConnectedRealmList = AF.getConnectedRealms( )
+    debug:debug( "tConnectedRealmList: %d realms [%s]", numConnectedRealmList, AF._tostring( tConnectedRealmList ) )
 
-    -- Handle case where specified realm is non-local and the local realm is
-    -- not connected to any others.  Note AF.getConnectedRealms( ) returns
-    -- at-least one realm in the table - the local realm.
-    debug:debug( "#tConnectedRealmList: %d", #tConnectedRealmList )
-    if( #tConnectedRealmList < 2 ) then
-        debug:debug( "Specified realm non-local, local realm is not connected." )
-        return false, "unknown"
-    end
-
-    -- Handle all cases where specified realm is non-local but not connected to
-    -- the local realm.
-    if(  tConnectedRealmList[localRealm] == nil ) then  -- specified realm not connected
-        debug:debug( "Specified realm non-local, and not-connected to local realm." )
-        return false, "unknown"
-    else                                                -- specified realm is connected
-        debug:debug( "Specified realm non-local and connected to local realm." )
+    if( AF:isRealmConnected( realmName ) == true ) then
+        debug:info( "Realm %s different than local realm, but is connected.", realmName )
         return false, realmName
     end
+
+    debug:info( "Realm %s not connected to local realm.", realmName )
+    return false, "unknown"
 end
 
 

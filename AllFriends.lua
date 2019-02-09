@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-07 10:35]
+     Last Modified       :     [2019-02-09 14:15]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -47,7 +47,7 @@ end
 --- Addon local function "outputFriendSnapshotList"
 -- Displays a colourized count of friends in the current snapshot.
 local function outputFriendSnapshotCount( snapshotObj )
-    debug:always( "Total # of friends in snapshot: %s%d%s", VALUE, snapshotObj:getNumFriends( ), REGULAR )
+    debug:always( "Total # of friends in snapshot: %s%d%s", VALUE, snapshotObj:countFriends( ), REGULAR )
 end
 
 
@@ -193,7 +193,8 @@ local function initialOnUpdateHandler( self, elapsed )
     if( friendList:countFriendList( ) == 0 or friendList:isFriendListAvailable( ) == true ) then
         frame:SetScript( "OnUpdate", nil )
         debug:debug( "OnUpdate disabled." )
-        snapshot:restoreFriendsSnapshot( friendList )
+        snapshot:restoreFriendsSnapshot( friendList )   -- Push snapshot contents into friend-list
+        snapshot:refreshFriendsSnapshot( friendList )   -- Refresh snapshot in-case addon never run before
         frame:RegisterEvent( "PLAYER_LOGOUT" )
 
         -- For FRIENDLIST_UPDATE, delay a bit before registering the event to
@@ -248,7 +249,7 @@ local function EventHandler( self, event, ... )
     --                 - Friends come online or go offline
     elseif( event == "FRIENDLIST_UPDATE" ) then
         snapshot:refreshFriendsSnapshot( friendList )
-        debug:debug( "Took snapshot of friends-list - contains %d friends.", snapshot:getNumFriends( ) )
+        debug:debug( "Took snapshot of friends-list - contains %d friends.", snapshot:countFriends( ) )
 
     -- Catchall for any registered but unhandled events
     else

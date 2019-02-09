@@ -2,7 +2,7 @@
      File Name           :     Debugging.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-07 11:21]
+     Last Modified       :     [2019-02-09 14:17]
      Description         :     Debugging facility for the WoW addon AllFriends
 --]]
 
@@ -107,7 +107,7 @@ local function logMsg( level, format, ... )
 --    DEFAULT_CHAT_FRAME:AddMessage( AF._tostring( debugstack( 0, 10, 10 ) ) )
 
     local prefix
-    if( level ~= TRACE and level ~= DEBUG ) then
+    if( level ~= TRACE and level ~= DEBUG and level ~= INFO ) then
         prefix = strformat( "%s%s%s", AF.DBG_MAGENTA, addonName, AF.DBG_REGULAR )
     else
         prefix = strformat( "%s%s.lua%s", AF.DBG_MAGENTA, addonName, AF.DBG_REGULAR )
@@ -153,7 +153,7 @@ local function logMsg( level, format, ... )
 end
 
 
---- Class private-methods "<various methods>"
+--- Class public-methods "<various methods>"
 -- Proxy functions for each debug level listed in LEVELLIST, all stored within a table
 --local levelFunctions = {}
 AF.Debugging.levelFunctions = {}
@@ -174,10 +174,10 @@ end
 --- Class constructor "new"
 -- Creates a new debugging object and sets initial debugging state
 -- @return          The newly constructed and initialized debugging object
-function AF.Debugging:new( debugObj )
+function AF.Debugging:new( )
 
-    local debugObj = debugObj or {}             -- Create object if caller doesn't provide one
-    setmetatable( debugObj, AF.Debugging_mt )   -- Set the class to be the object's
+    local debugObj = {}                         -- Create object
+    setmetatable( debugObj, AF.Debugging_mt )   -- Set the class to be the object's MT
 
     -- Per-object data initialization
     ----------------------------------------------------------------------------
@@ -201,7 +201,7 @@ function AF.Debugging:setLevel( level )
         return false
     else
         if( self.level ~= level ) then
-            self:log( DEBUG, "Changing debugging verbosity from %s to %s", self.level, level )
+            self:log( DEBUG, "Changing debugging verbosity from %s to %s", self.level, strupper( level ) )
         end
         self.level = level
         self.order = order
@@ -276,6 +276,16 @@ function AF.Debugging:saveDataToGlobal( )
     AllFriendsData = AllFriendsData or {}
     AllFriendsData.DebugLevel = self:getLevel( )
     return
+end
+
+
+--- Class public method "chkType"
+-- Asserts whether the specified class ID matches the ID of this class
+-- @param   wantedType  Class ID to assert against this class's ID
+-- @return  true        Returned of the specified class ID matches this class's ID
+-- @return <error raised by the assert() if the IDs don't match>
+function AF.Debugging:chkType( wantedType )
+    return assert( self.class == wantedType )
 end
 
 

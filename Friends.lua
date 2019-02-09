@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-07 11:23]
+     Last Modified       :     [2019-02-09 01:48]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -58,16 +58,19 @@ end
 function AF.Friends:getFriends( )
     local tFriendList = {}
     local numServerFriends = C_FriendList.GetNumFriends( )
+    debug:debug( "Friend list contains %d friends", numServerFriends )
     local _, friendInfo, playerName, playerRealm
     for i = 1, numServerFriends do
         friendInfo = C_FriendList.GetFriendInfoByIndex( i )
         playerName = strlower( strgsub( friendInfo.name, "-.+$", "" ) )
-        _, playerRealm = AF.getLocalizedRealm( friendInfo.name )
+        _, playerRealm = AF:getLocalizedRealm( friendInfo.name )
+        debug:info( "Retrieved %s-%s (%d of %d) from friend-list", playerName, playerRealm, i, numServerFriends )
         debug:debug( "Requesting new object for [%s]", playerName .. "-" .. playerRealm )
         tFriendList[i] = AF.Player:new( playerName .. "-" .. playerRealm )
         debug:debug( "tFriendList[%d]  name=%s realm=%s local=%s",
                      i, tFriendList[i]:getName(), tFriendList[i]:getRealm(), AF._tostring( tFriendList[i]:isLocal() ) )
     end
+    debug:debug( "Done retrieving friends - returning [%s]", AF._tostring( tFriendList ) )
     return tFriendList
 end
 
@@ -209,6 +212,16 @@ function AF.Friends:removeFriend( playerObj )
         debug:info( "Removed %s from friend list.", playerKey )
     end
     return true
+end
+
+
+--- Class public method "chkType"
+-- Asserts whether the specified class ID matches the ID of this class
+-- @param   wantedType  Class ID to assert against this class's ID
+-- @return  true        Returned of the specified class ID matches this class's ID
+-- @return <error raised by the assert() if the IDs don't match>
+function AF.Friends:chkType( wantedType )
+    return assert( self.class == wantedType )
 end
 
 
