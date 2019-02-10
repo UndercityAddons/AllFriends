@@ -2,7 +2,7 @@
      File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-09 14:15]
+     Last Modified       :     [2019-02-10 15:59]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -39,19 +39,19 @@ local VALUE         = AF.DBG_YELLOW
 
 --- Addon local function "outputFriendSnapshotList"
 -- Dumps the contents of the current snapshot to debugging output.
-local function outputFriendSnapshotList( snapshotObj )
-        snapshotObj:dumpFriendSnapshot( )
+local function outputFriendSnapshotList( snapshotObj, whichSnap )
+        snapshotObj:dumpFriendSnapshot( whichSnap )
 end
 
 
 --- Addon local function "outputFriendSnapshotList"
 -- Displays a colourized count of friends in the current snapshot.
-local function outputFriendSnapshotCount( snapshotObj )
-    debug:always( "Total # of friends in snapshot: %s%d%s", VALUE, snapshotObj:countFriends( ), REGULAR )
+local function outputFriendSnapshotCount( snapshotObj, whichSnap )
+    debug:always( "Friends in player-snapshot: %s%d%s", VALUE, snapshotObj:countFriends( whichSnap ), REGULAR )
 end
 
 
---- Addon local function "outputFriendSnapshotList"
+--- Addon local function "outputDeleteStatus"
 -- Displays a colourized indicator of the current friend-deletion setting.
 local function outputDeleteStatus( snapshotObj )
     if( snapshotObj:isDeletionActive( ) ) then
@@ -62,14 +62,14 @@ local function outputDeleteStatus( snapshotObj )
 end
 
 
---- Addon local function "outputFriendSnapshotList"
+--- Addon local function "outputDebuggingStatus"
 -- Displays a colourized indicator of the current debugging severity level.
 local function outputDebuggingStatus( debugObj )
     debug:always( "Debug level is currently %s%s%s.", VALUE, strupper( debugObj:getLevel( ) ), REGULAR )
 end
 
 
---- Addon local function "outputFriendSnapshotList"
+--- Addon local function "outputFullSyncStatus"
 -- Displays a colourized indicator of the current full-sync setting.
 local function outputFullSyncStatus( snapshotObj )
     if( snapshotObj:isFullSyncActive( ) ) then
@@ -92,7 +92,8 @@ local function slashCommandHandler( msg, editbox )
 
     -- Display current state/status for the addon
     if( AF.startswith( msg, "status" ) ) then
-        outputFriendSnapshotCount( snapshot )
+        outputFriendSnapshotCount( snapshot, "player" )
+        outputFriendSnapshotCount( snapshot, "master" )
         outputDeleteStatus( snapshot )
         outputFullSyncStatus( snapshot )
         outputDebuggingStatus( debug )
@@ -110,9 +111,12 @@ local function slashCommandHandler( msg, editbox )
 
     -- Show the contents of the current snapshot
     elseif( msg == "friends" ) then
-            outputFriendSnapshotList( snapshot )
+            outputFriendSnapshotList( snapshot, "player" )
             debug:always( "--------------------" )
-            outputFriendSnapshotCount( snapshot )
+            outputFriendSnapshotCount( snapshot, "player" )
+            outputFriendSnapshotList( snapshot, "master" )
+            debug:always( "--------------------" )
+            outputFriendSnapshotCount( snapshot, "master" )
         return
 
     -- Control whether the addon deletes stale friends from the friend list or not
@@ -249,7 +253,7 @@ local function EventHandler( self, event, ... )
     --                 - Friends come online or go offline
     elseif( event == "FRIENDLIST_UPDATE" ) then
         snapshot:refreshFriendsSnapshot( friendList )
-        debug:debug( "Took snapshot of friends-list - contains %d friends.", snapshot:countFriends( ) )
+        debug:debug( "Took snapshot of friends-list - contains %d friends.", snapshot:countFriends( "player" ) )
 
     -- Catchall for any registered but unhandled events
     else

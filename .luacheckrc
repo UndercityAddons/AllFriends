@@ -1,8 +1,8 @@
 std = "max"
 globals = {
 	"addonName",
-	"AF.addonVersion",
 	"AF.addFriendToSnapshot",
+	"AF.addonVersion",
 	"AF.DBG_BLACK",
 	"AF.DBG_BLUE",
 	"AF.DBG_CYAN",
@@ -25,7 +25,7 @@ globals = {
 	"AF.Debugging_mt",
 	"AF.endswith",
 	"AF.findFriendInSnapshot",
-	"AF.findPlayerGlobals",
+	"AF.findGlobals",
 	"AF.Friends",
 	"AF.Friends.chkType",
 	"AF.Friends_mt",

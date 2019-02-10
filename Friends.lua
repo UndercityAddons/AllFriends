@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-09 01:48]
+     Last Modified       :     [2019-02-10 14:37]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -38,9 +38,9 @@ AF.Friends_mt = { __index = AF.Friends }    -- Class metatable
 --- Class constructor "new"
 -- Creates a new Friends object and sets initial state.
 -- @return          The newly constructed and initialized Friends object
-function AF.Friends:new( friendsObj )
+function AF.Friends:new( )
 
-    local friendsObj = friendsObj or {}         -- New object
+    local friendsObj = {}                       -- New object
     setmetatable( friendsObj, AF.Friends_mt )   -- Set up the object's metatable
 
     -- Per-object data initialization
