@@ -2,7 +2,7 @@
      File Name           :     Snapshots.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-11 11:15]
+     Last Modified       :     [2019-02-11 11:55]
      Description         :     Snapshots class for the WoW addon AllFriends
 
 This module of AllFriends implements a Snapshot class, responsible for all
@@ -250,7 +250,7 @@ end
 -- and returned.  The references that are returned are:
 --      - Table containing DoDeletions settings for all players
 --      - The realm-group the player belongs to
---      - The player's friend snapshot
+--      - The realm-group's master snapshot
 --
 -- If an error occurs (e.g. invalid player key) then all returns will be nil.
 --
@@ -258,7 +258,6 @@ end
 -- @param   playerKey       Player key (i.e. "name-realm")
 -- @return  tDoDeletions    Table containing doDeletions flags for each player
 -- @return  tMyRealmGroup   Table containing the player's realm-group
--- @return  tMySnapshot     Table containing the player's friendsnapshot
 -- @return  tMasterSnapshot Table containing the realm-group's master snapshot
 function AF.findGlobals( self, playerKey )
 
@@ -270,7 +269,6 @@ function AF.findGlobals( self, playerKey )
 
     local tMyRealmGroup = {}
     local tDoDeletions
---    local tMySnapshot
     local tMasterSnapshot
 
     -- If the addon hasn't run before the the addon's SavedVariables file will
@@ -328,22 +326,12 @@ function AF.findGlobals( self, playerKey )
     end
     ---------------------------------------------------------------------------
 
---[[
-    -- Locate the player's snapshot, or create a new one
-    ---------------------------------------------------------------------------
-    tMyRealmGroup.tSnapshots            = tMyRealmGroup.tSnapshots or {}
-    tMyRealmGroup.tSnapshots[playerKey] = tMyRealmGroup.tSnapshots[playerKey] or {}
-    tMySnapshot                         = tMyRealmGroup.tSnapshots[playerKey]
-    ---------------------------------------------------------------------------
-]]--
-
     -- Locate the realm-group's master snapshot, or create a new one
     ---------------------------------------------------------------------------
     tMyRealmGroup.tMasterSnapshot       = tMyRealmGroup.tMasterSnapshot or {}
     tMasterSnapshot                     = tMyRealmGroup.tMasterSnapshot
     ---------------------------------------------------------------------------
 
---    return tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot
     return tDoDeletions, tMyRealmGroup, tMasterSnapshot
 end
 
@@ -578,16 +566,6 @@ function AF.Snapshot:refreshFriendsSnapshot( friendListObj )
         return false
     end
 
---[[
-    -- Extract the full current friend-list.  Abort the rebuild if an error occurred.
-    local tFriendsTmp = friendListObj:getFriends( )
-    if( not tFriendsTmp ) then
-        debug:warn( "Error pulling current friend list - aborting snapshot rebuild." )
-        debug:trace( "exited" )
-        return false
-    end
-]]--
-
     -- Identify what is different between the master snapshot and friend list.
     -- Handle differences as follows:
     --   1. Friends in the master snapshot but not the friend-list were just
@@ -622,11 +600,6 @@ function AF.Snapshot:refreshFriendsSnapshot( friendListObj )
         end
     end
 end
-
------------------------- ALMOST WORKS - BUT STALE FRIENDS AREN'T DELETED ON PRIESTITUTE
-
-
-
 
 
 --- Class public-method "restoreFriendsSnapshot"
@@ -775,7 +748,6 @@ function AF.Snapshot:loadDataFromGlobal( )
     local myName = strlower( UnitName( "player" ) ) .. "-" .. self.Realm
 
     -- Get the locations of the various global data related to this player
---    local tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot = AF.findGlobals( self, myName )
     local tDoDeletions, tMyRealmGroup, tMasterSnapshot = AF.findGlobals( self, myName )
 
     -- Load all the data from the Addon Globals related to this player into the snapshot
@@ -785,17 +757,6 @@ function AF.Snapshot:loadDataFromGlobal( )
     if( tMyRealmGroup.fullSync ~= nil ) then
         self.fullSync = tMyRealmGroup.fullSync
     end
---[[
-    for _, playerKey in ipairs( tMySnapshot ) do
-        if( AF.addFriendToSnapshot( self, AF.Player:new( playerKey ), "player" ) ) then
-            debug:debug( "Loaded snapshot with friend %s from SavedVariables.", playerKey )
-        else
-            debug:warn( "Error loading friend %s from SavedVariables into snapshot.", playerKey )
-            debug:trace( "exited" )
-            return false
-        end
-    end
-]]--
     for _, playerKey in ipairs( tMasterSnapshot ) do
         if( AF.addFriendToSnapshot( self, AF.Player:new( playerKey ), "master" ) ) then
             debug:debug( "Loaded master snapshot with %s from SavedVariables.", playerKey )
@@ -828,20 +789,14 @@ function AF.Snapshot:saveDataToGlobal( )
     local myName = strlower( UnitName( "player" ) .. "-" .. self.Realm )
 
     -- Get the locations of the various global data related to this player
---    local tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot = AF.findGlobals( self, myName )
     local tDoDeletions, tMyRealmGroup, tMasterSnapshot = AF.findGlobals( self, myName )
 
     -- Save all the data related to this player into the Addon Globals
     tDoDeletions[myName]    = self:isDeletionActive( )
     tMyRealmGroup.fullSync  = self:isFullSyncActive( )
     tMyRealmGroup.realmList = self.tConnectedRealms
---[[
-    wipe( tMySnapshot )
-    for playerKey, _ in pairs( self.tFriends ) do
-        tblinsert( tMySnapshot, playerKey )
-    end
-]]--
-wipe( tMasterSnapshot )
+
+    wipe( tMasterSnapshot )
     for playerKey, _ in pairs( self.tMasterFriends ) do
         tblinsert( tMasterSnapshot, playerKey )
     end
