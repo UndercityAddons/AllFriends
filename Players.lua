@@ -2,7 +2,7 @@
      File Name           :     Players.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-09 01:48]
+     Last Modified       :     [2019-02-11 13:51]
      Description         :     PLayer class for the WoW addon AllFriends
 
 This module of AllFriends implements a Player class, representing a Player
@@ -32,12 +32,12 @@ AF.Player = {
     -- Class data prototypes (i.e. "default" values for new objects
     ----------------------------------------------------------------------------
     class       = "player", -- Class identifier
-    doDeletions = false,    -- Delete stale friends from this player's list
     isLocalFlg  = true,     -- Is player on the local (i.e. current) realm
     name        = "",       -- Player's name (lowercase)
     realm       = "",       -- Player's realm (lowercase)
 }
-AF.Player_mt            = { __index = AF.Player}    -- Metatable
+AF.Player_mt            = {}
+AF.Player_mt.__index    = AF.Player
 
 
 --- Class constructor "new"
@@ -110,35 +110,6 @@ function AF.Player:isLocal( )
     return self.isLocalFlg
 end
 
-
--- class public method "setDeletions"
--- Sets the doDeletions flag for this player, indicating whether stale friends
--- should be removed from their friend list or not.  Possible values are boolena
--- true and boolean false.
--- @param   true/false  Boolean value to set the doDeletions flag to
--- @return  true        doDeletions flag successfully set.
--- @return  false       Invalid setting specified
-function AF.Player:setDeletionFlag( setting )
-
-    -- Parameter validation
-    if( not setting or type( setting ) ~= "boolean" ) then
-        debug:warn( "Invalid setting specified - doDeletions flag unchanged." )
-        return false
-    end
-
-    self.doDeletions = setting
-    return true
-end
-
-
---- class public method "getDeletions"
--- Returns the doDeletions flag for this player, which indicates whether stale
--- friends should be removed from their friend list or not.
--- @return  true        doDeletions flag set to be active.
--- @return  false       doDeletions flag set to be inactive.
-function AF.Player:getDeletionFlag( )
-    return( self.doDeletions )
-end
 
 --- Class public method "chkType"
 -- Asserts whether the specified class ID matches the ID of this class
