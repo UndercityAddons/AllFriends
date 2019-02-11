@@ -2,7 +2,7 @@
      File Name           :     Snapshots.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-10 15:50]
+     Last Modified       :     [2019-02-11 11:15]
      Description         :     Snapshots class for the WoW addon AllFriends
 
 This module of AllFriends implements a Snapshot class, responsible for all
@@ -49,7 +49,6 @@ AF.Snapshot = {
     snapshotRestored  = false,      -- Has a snapshot-restore completed
     doDeletions       = false,      -- Should the addon delete stale friends
     fullSync          = false,      -- Ignore doDeletions (turn TRUE for all currently connected realms)
-    tSkipDelete       = {},         -- Table of stale friends to not delete
 }
 AF.Snapshot_mt          = {}            -- Metatable
 AF.Snapshot_mt.__index  = AF.Snapshot   -- Look in the class for undefined methods
@@ -84,77 +83,6 @@ function AF.wipeFriendsFromSnapshot( self, whichSnap )
         self.numMasterFriends = 0
     end
     return true
-end
-
-
---- class private method "AF.setSkipDelete"
--- Takes the specified player object, treats them as a stale friend (i.e. in a
--- friend-list but not in the snapshot), and sets/clears their SkipDelete
--- status.  Having this status set causes the specified stale friend to not be
--- withheld from the friend list on subsequent snapshot restores.
--- @param   self        Object context
--- @param   playerObj   Player object to act on.
--- @param   status      (true/false) Sets/unsets the SkipDelete status
--- @return  true        Status successfully set/unset
--- @return  false       Error setting/unsetting status
-function AF.setSkipDelete( self, playerObj, status )
-    debug:trace( "entered" )
-
-    -- Parameter validation
-    if( not pcall( function( ) return playerObj:chkType( AF.Player.class ) end ) ) then
-        debug:warn( "Invalid player object - can't search within snapshot." )
-        debug:trace( "exited" )
-        return false
-    elseif( status == nil or type( status ) ~= "boolean" ) then
-        debug:warn( "status flag nil or not-boolean - not setting skip-delete status." )
-        debug:trace( "exited" )
-        return false
-    end
-
-    -- If provided status == true then add the player object to the SkipDelete
-    -- table.  If status == false then remove the player object from the
-    -- SkipDelete table if they exist (do nothing if they don't).
-    if( status ) then
-        self.tSkipDelete[ playerObj:getKey( ) ] = playerObj
-        debug:debug( "Added %s to tSkipDelete table.", playerObj:getKey( ) )
-    else
-        if( self.tSkipDelete[ playerObj:getKey( ) ] ~= nil ) then
-            self.tSkipDelete[ playerObj:getKey( ) ] = nil
-        end
-        debug:debug( "Removed %s from tSkipDelete table.", playerObj:getKey( ) )
-    end
-        debug:trace( "exited" )
-    return true
-end
-
-
---- class private method "AF.getSkipDelete"
--- Takes the specified player object, treats them as a stale friend (i.e. in a
--- a friend list but not in the snapshot), and returns their SkipDelete status.
--- @param   self        Object context
--- @param   playerObj   Player object to act on
--- @return  "set"       Player has its SkipDelete status set
--- @return  "unset"     Player's SkipDelete status is not set.
--- @return  ""          Error getting status
-function AF.getSkipDelete( self, playerObj )
-    debug:trace( "entered" )
-
-    -- Parameter validation
-    if( not pcall( function( ) return playerObj:chkType( AF.Player.class ) end ) ) then
-        debug:warn( "Invalid player object - can't search within snapshot." )
-        debug:trace( "exited" )
-        return ""
-    end
-
-    if( self.tSkipDelete[ playerObj:getKey( ) ] ~= nil ) then
-        debug:debug( "Player %s skip-delete status is set.", playerObj:getKey( ) )
-        debug:trace( "exited" )
-        return "set"
-    else
-        debug:debug( "Player %s skip-delete status is not set.", playerObj:getKey( ) )
-        debug:trace( "exited" )
-        return "unset"
-    end
 end
 
 
@@ -264,6 +192,56 @@ function AF.addFriendToSnapshot( self, playerObj, whichSnap )
     return true
 end
 
+
+--- Class private method "removeFriendFromSnapshot"
+-- Takes a specified player object and removes them from a snapshot as a
+-- friend.  The snapshot may either be the current player's personal snapshot,
+-- or the master snapshot for the realm-group.  This is idempotent - multiple
+-- attempts on the same player, or removing a player that is already absent
+-- will not fail.
+-- @param   self        Object context
+-- @param   playerObj   Player object to be removed
+-- @param   whichSnap   "player" or "master" - which snapshot to work on
+-- @return  true        Player removed successfully
+-- @return  nil         Error removing player
+function AF.removeFriendFromSnapshot( self, playerObj, whichSnap )
+
+    -- Parameter Validation
+    if( not pcall( function( ) return playerObj:chkType( AF.Player.class ) end ) ) then
+        debug:warn( "Invalid player object - can't remove from snapshot." )
+        debug:trace( "exited" )
+        return nil
+    elseif( playerObj:getName( ) == "" or playerObj:getRealm( ) == "" ) then
+        debug:warn( "Missing player name and/or realm - can't remove from snapshot." )
+        debug:trace( "exited" )
+        return nil
+    elseif( whichSnap == nil ) then
+        debug:warn( "No target snapshot specified - can't remove from snapshot." )
+        return nil
+    else
+        whichSnap = strlower( whichSnap )
+        if( whichSnap ~= "player" and whichSnap ~= "master" ) then
+            debug:warn( "Invalid snapshot - can't remove from snapshot." )
+            return nil
+        end
+    end
+
+    if( AF.findFriendInSnapshot( self, playerObj, whichSnap ) ~= "present" ) then
+        debug:info( "Friend %s already not in snapshot.", playerObj:getKey( ) )
+    else
+        if( whichSnap == "player" ) then
+            self.tFriends[ playerObj:getKey( ) ] = nil
+            self.numFriends = self.numFriends - 1
+        else
+            self.tMasterFriends[ playerObj:getKey( ) ] = nil
+            self.numMasterFriends = self.numMasterFriends - 1
+        end
+        debug:info( "%s removed from %s snapshot", playerObj:getKey( ), whichSnap )
+    end
+    return true
+end
+
+
 --- Class private method "findGlobals"
 -- Locates all data related to the specified player in the Addon's Globals that
 -- were deserialized from the Addon's SavedVariables.  Returns references to
@@ -292,7 +270,7 @@ function AF.findGlobals( self, playerKey )
 
     local tMyRealmGroup = {}
     local tDoDeletions
-    local tMySnapshot
+--    local tMySnapshot
     local tMasterSnapshot
 
     -- If the addon hasn't run before the the addon's SavedVariables file will
@@ -304,7 +282,7 @@ function AF.findGlobals( self, playerKey )
     AllFriendsData = AllFriendsData or {}
     AllFriendsData.RealmGroups = AllFriendsData.RealmGroups or {}
     AllFriendsData.doDeletions = AllFriendsData.doDeletions or {}
-    
+
     -- Locate the doDeletions table
     ---------------------------------------------------------------------------
     tDoDeletions = AllFriendsData.doDeletions
@@ -350,12 +328,14 @@ function AF.findGlobals( self, playerKey )
     end
     ---------------------------------------------------------------------------
 
+--[[
     -- Locate the player's snapshot, or create a new one
     ---------------------------------------------------------------------------
     tMyRealmGroup.tSnapshots            = tMyRealmGroup.tSnapshots or {}
     tMyRealmGroup.tSnapshots[playerKey] = tMyRealmGroup.tSnapshots[playerKey] or {}
     tMySnapshot                         = tMyRealmGroup.tSnapshots[playerKey]
     ---------------------------------------------------------------------------
+]]--
 
     -- Locate the realm-group's master snapshot, or create a new one
     ---------------------------------------------------------------------------
@@ -363,7 +343,68 @@ function AF.findGlobals( self, playerKey )
     tMasterSnapshot                     = tMyRealmGroup.tMasterSnapshot
     ---------------------------------------------------------------------------
 
-    return tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot
+--    return tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot
+    return tDoDeletions, tMyRealmGroup, tMasterSnapshot
+end
+
+
+--- Class private method "diffSnapAndFriendList"
+-- Takes a friendListObj and compares it against the specified snapshot
+-- (player's or master) to see what has changed.  A diff-table is returned
+-- listing the changes.  The table takes the following form:
+--    tblDiffs = {
+--      [playername-playerrealm"] = "added",   -- added to friend-list
+--      ["anotherplayer-realm"]   = "removed", -- removed from friend-list
+--    }
+-- An empty diff- table indicates that there were no changes.
+-- @param   self            Object context
+-- @param   friendListObj   Friend List Object to compare.
+-- @param   whichSnap       Which snapshot to compare ("player" or "master")
+-- @return  tblDiffs        Diff-table of friend-list changes vs snapshot
+-- @return  nil             Invalid parameters
+function AF.diffSnapAndFriendList( self, friendListObj, whichSnap )
+
+    -- Parameter validation
+    if( not pcall( function( ) return friendListObj:chkType( AF.Friends.class ) end ) ) then
+        debug:warn( "Invalid friends object - can't search complete diff." )
+        return nil
+    elseif( whichSnap == nil ) then
+        debug:warn( "No snapshot specified - can't complete diff." )
+        return nil
+    elseif( whichSnap ~= "player" and whichSnap ~= "master" ) then
+        debug:warn( "Invalid snapshot specified - can't complete diff." )
+        return nil
+    end
+
+    local sourceSnap
+    if( whichSnap == "player" ) then
+        sourceSnap = self.tFriends
+    else
+        sourceSnap = self.tMasterFriends
+    end
+    local tFriendList = friendListObj:getFriendsAsNames( )
+
+    local tblDiffs = {}
+
+    -- Iterate the specified snapshot.  For every snapshot element that is not
+    -- also in the friend-list, add it to the diff-table as a "removed" element.
+    for playerKey, _ in pairs( sourceSnap ) do
+        if( tFriendList[playerKey] == nil ) then
+            tblDiffs[playerKey] = "removed"
+            debug:debug( "Logging a 'removed %s' diff", playerKey )
+        end
+    end
+
+    -- Iterate the friend list.  For every friend-list element that is not
+    -- also in the snapshot, add it to the diff-table as an "added" element.
+    for playerKey, _ in pairs( tFriendList ) do
+        if( sourceSnap[playerKey] == nil ) then
+            tblDiffs[playerKey] = "added"
+            debug:debug( "Logging a 'added %s' diff", playerKey )
+        end
+    end
+
+    return tblDiffs
 end
 
 
@@ -409,7 +450,7 @@ function AF.Snapshot:setFullSync( fullSyncFlag, friendListObj )
     end
 
     -- If flag has changed, then immediately refresh the friend snapshot to
-    -- update things like the SkipDelete table as appropriate.
+    -- properly rebase the per-player "overlay" and master snapshots, etc.
     if( self.FullSync ~= fullSyncFlag ) then
         self.fullSync = fullSyncFlag
         debug:info( "FullSync flag changed to %s", strupper( AF._tostring( self.fullSync ) ) )
@@ -443,7 +484,6 @@ function AF.Snapshot:new( )
     snapshotObj.tConnectedRealms    = AF.getConnectedRealms( )
     snapshotObj.doDeletions         = false
     snapshotObj.fullSync            = false
-    snapshotObj.tSkipDelete         = {}
     ----------------------------------------------------------------------------
 
     debug:trace( "exited" )
@@ -538,6 +578,7 @@ function AF.Snapshot:refreshFriendsSnapshot( friendListObj )
         return false
     end
 
+--[[
     -- Extract the full current friend-list.  Abort the rebuild if an error occurred.
     local tFriendsTmp = friendListObj:getFriends( )
     if( not tFriendsTmp ) then
@@ -545,63 +586,47 @@ function AF.Snapshot:refreshFriendsSnapshot( friendListObj )
         debug:trace( "exited" )
         return false
     end
+]]--
 
-    -- Wipe the player snapshot and rebuild it from the friend-list.
-    -- Also wipe the master snapshot and rebuild it from the friend-list.
---    AF.wipeFriendsFromSnapshot( self, "player" )
-    AF.wipeFriendsFromSnapshot( self, "master" )
-    for _, currentFriend in pairs( tFriendsTmp ) do
-        if( self:isFullSyncActive( ) ) then
-            debug:debug( "FullSync ON - adding %s to snapshot.", currentFriend:getKey() )
---            AF.addFriendToSnapshot( self, currentFriend, "player" )
-            AF.addFriendToSnapshot( self, currentFriend, "master" )
+    -- Identify what is different between the master snapshot and friend list.
+    -- Handle differences as follows:
+    --   1. Friends in the master snapshot but not the friend-list were just
+    --      "newly-removed" by the player, so remove them from the master
+    --       snapshot.
+    --   2. friends in the friend-list but not the master snapshot are one of
+    --      two things:  Newly-added, or stale.  Handle as follows:
+    --        a. Friends not in the master snapshot and also not in the per-
+    --           player "overlay" list are "newly-added", so add them to the
+    --           master snapshot.
+    --        b. Friends not in the master snapshot but in the player-specifc
+    --           "overlay" list are stale.  Delete them from the friend-list
+    --           and player-specific "overlay" snapshot if FullSync or
+    --           DoDeletions are on, otherwise leave intact.
+    debug:debug( "Starting to diff master vs friend list..." )
+    local tDiffs = AF.diffSnapAndFriendList( self, friendListObj, "master" )
+    for playerKey, whatHappened in pairs( tDiffs ) do
+        debug:debug( "%s was %s from the snapshot.", playerKey, whatHappened )
+        local tmpPlayerObj = AF.Player:new( playerKey )
+        if( whatHappened == "removed" ) then
+            AF.removeFriendFromSnapshot( self, tmpPlayerObj, "master" )
+            debug:info( "Friend %s removed from master snapshot", playerKey )
         else
-            debug:debug( "FullSync OFF - adding %s to snapshot.", currentFriend:getKey() )
---            AF.addFriendToSnapshot( self, currentFriend, "player" )
-            AF.addFriendToSnapshot( self, currentFriend, "master" )
-        end
-    end
-
---[[    -- Ensure that anyone not in the friend-list is removed from the master snapshot
-    if( self:countFriends( "master" ) > 0 ) then
-        for playerKey, playerObj in pairs( self.tMasterFriends ) do
-            if( not friendListObj:findFriend( playerObj ) ) then
-                AF.removeFriendFromSnapshot( self, playerObj, "master" )
+            if( AF.findFriendInSnapshot( self, tmpPlayerObj, "player" ) == "missing" ) then
+                AF.addFriendToSnapshot( self, tmpPlayerObj, "master" )
+            else
+                if( self:isFullSyncActive( ) or self:isDeletionActive( ) ) then
+                    friendListObj:removeFriend( playerKey )
+                    AF.removeFriendFromSnapshot( self, tmpPlayerObj, "player" )
+                end
             end
         end
     end
-]]--
-    debug:trace( "exited" )
-    return true
 end
 
+------------------------ ALMOST WORKS - BUT STALE FRIENDS AREN'T DELETED ON PRIESTITUTE
 
 
 
-
-
---[[
-    -- Stale friends will NOT be stashed in snapshots if any of the following
-    -- are true:
-    --  1. fullSync == true (for all characters in the current realm-group)
-    --  2. DeletionActive == true for the current character, and the stale
-    --     friend does NOT have its SkipDelete status set.
-    -- In all other cases, stale friends will be stashed in snapshots, causing
-    -- them to continue being propagated to other characters in the same realm-
-    -- group.
-    if( self:isFullSyncActive() ) then
-        debug:debug( "FullSync active - stale friend %s not stashed into snapshot.", tFriendsTmp[i]:getKey( ) )
-    elseif( self:isDeletionActive( ) and AF.getSkipDelete( tFriendsTmp[i]:getKey( ) ) == "unset" ) then
-        debug:debug( "Deletions active and stale friend not flagged - not stashed into snapshot.",
-                     tFriendsTmp[i]:getKey( ) )
-    else
-        debug:debug( ">>>   Adding #%d [%s] to snapshot.", i, tFriendsTmp[i]:getKey() )
-        AF.addFriendToSnapshot( self, tFriendsTmp[i], "player" )
-    end
-    debug:trace( "exited" )
-    return true
-end
-]]--
 
 
 --- Class public-method "restoreFriendsSnapshot"
@@ -643,46 +668,42 @@ function AF.Snapshot:restoreFriendsSnapshot( friendListObj )
         debug:debug( "FRIENDLIST_UPDATE already unregistered during restore" )
     end
 
-    -- Iterate through the snapshot and add all missing friends in it into the
-    -- friend list.
---    if( self:countFriends( "player" ) > 0 ) then
+    -- Iterate the snapshot and add all missing friends into the friend list.
+    -- If a player-snapshot contains any friends, then use it; otherwise iterate
+    -- through the master snapshot for that realm-group.
+    local sourceSnap
     if( self:countFriends( "master" ) > 0 ) then
-        debug:debug( "Snapshot contains friends - restoring to friend-list." )
---        for playerKey, playerObj in pairs( self.tFriends ) do
-        for playerKey, playerObj in pairs( self.tMasterFriends ) do
-            debug:debug( "doing friendListObj:findFriend( ) on playerKey %s", playerKey )
-            friendListObj:addFriend( playerObj )
-            debug:debug( "%s now in friend list.", playerKey )
-        end
+        sourceSnap = self.tMasterFriends
+        debug:debug( "Master snapshot has friends, using it." )
     else
-        debug:debug( "No friends in snapshot - restoring nothing to friend-list." )
+        sourceSnap = self.trFriends
+        debug:debug( "Master snapshot is empty, using player snapshot instead." )
     end
 
-    -- Iterate the friend-list, searching for stale friends (i.e. friends that
-    -- aren't also in the snapshot).  If fullSync is on (all players on all
-    -- realms in the connected group) then remove the stale player from the
-    -- friend list.  Do the same if fullSync is off but doDeletions is on (for
-    -- the current player on the current realm).  Otherwise, leave stale friends
-    -- alone and flag for no-deletion the next time the addon is loaded and the
-    -- snapshot is restored.
-    debug:debug( "Looking in friend-list for stale friends." )
-    local tFriendsTmp = friendListObj:getFriends()
-    debug:debug( "tFriendsTmp: [%s]", AF._tostring( tFriendsTmp ) )
-    for _, playerObj in pairs( tFriendsTmp ) do
---        if( AF.findFriendInSnapshot( self, playerObj, "player" ) ) then
-        if( AF.findFriendInSnapshot( self, playerObj, "master" ) == "present" ) then
-            debug:debug( "Friend %s not stale - doing nothing.", playerObj:getKey( ) )
-        else
-            if( not self:isFullSyncActive( ) and not self:isDeletionActive( ) ) then
-            debug:debug( "Friend %s stale but fullSync and doDeletions are off - doing nothing", playerObj:getKey( ) )
+    for _, playerObj in pairs( sourceSnap ) do
+        friendListObj:addFriend( playerObj )
+    end
+
+    -- Once all players in the master snapshot are in the friend list, scan for
+    -- stale friends (in the friend-list but not the master snapshot).  Handle
+    -- all stale friends as follows:
+    --   1. If fullSync or doDeletions are on, then delete stale friends from
+    --      master snapshot.  Otherwise,
+    --   2. if fullSync or doDeletions are off, then add the stale friends to
+    --      the player-specific "overlay" snapshot to ensure preservation.
+    local tDiffs = AF.diffSnapAndFriendList( self, friendListObj, "master" )
+    AF.wipeFriendsFromSnapshot( self, "player" )
+    for playerKey, action in pairs( tDiffs ) do
+        if( action == "added" ) then
+            if( self:isFullSyncActive( ) or self:isDeletionActive() ) then
+                friendListObj:removeFriend( AF.Player:new( playerKey ) )
+                debug:info( "%s stale - removed from friend list.", playerKey )
             else
-                debug:debug( "Friend %s stale and fullSync or doDeletions are on - removing.", playerObj:getKey( ) )
-                friendListObj:removeFriend( playerObj )
-                AF.setSkipDelete( self, playerObj, true )
+                AF.addFriendToSnapshot( self, AF.Player:new( playerKey ), "player" )
+                debug:info( "%s stale - added to player-specific overlay snapshot.", playerKey )
             end
         end
     end
-    debug:debug( "Finished looking for stale friends." )
 
     -- Once restore is completed, re-register this event (only if it previously
     -- was registered prior to starting the restore).  Instead of re-registering
@@ -729,7 +750,7 @@ function AF.Snapshot:dumpFriendSnapshot( whichSnap )
         target = self.tMasterFriends
     end
     for _, playerObj in pairs( target ) do
-        debug:always( "#%d %s-%s", count, playerObj:getName( ), playerObj:getRealm( ) )
+        debug:always( "#%d %s%s-%s%s", count, CLR_VALUE, playerObj:getName( ), playerObj:getRealm( ), CLR_REG )
         count = count + 1
     end
     debug:trace( "exited" )
@@ -754,7 +775,8 @@ function AF.Snapshot:loadDataFromGlobal( )
     local myName = strlower( UnitName( "player" ) ) .. "-" .. self.Realm
 
     -- Get the locations of the various global data related to this player
-    local tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot = AF.findGlobals( self, myName )
+--    local tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot = AF.findGlobals( self, myName )
+    local tDoDeletions, tMyRealmGroup, tMasterSnapshot = AF.findGlobals( self, myName )
 
     -- Load all the data from the Addon Globals related to this player into the snapshot
     if( tDoDeletions[myName] ~= nil ) then
@@ -763,6 +785,7 @@ function AF.Snapshot:loadDataFromGlobal( )
     if( tMyRealmGroup.fullSync ~= nil ) then
         self.fullSync = tMyRealmGroup.fullSync
     end
+--[[
     for _, playerKey in ipairs( tMySnapshot ) do
         if( AF.addFriendToSnapshot( self, AF.Player:new( playerKey ), "player" ) ) then
             debug:debug( "Loaded snapshot with friend %s from SavedVariables.", playerKey )
@@ -772,6 +795,7 @@ function AF.Snapshot:loadDataFromGlobal( )
             return false
         end
     end
+]]--
     for _, playerKey in ipairs( tMasterSnapshot ) do
         if( AF.addFriendToSnapshot( self, AF.Player:new( playerKey ), "master" ) ) then
             debug:debug( "Loaded master snapshot with %s from SavedVariables.", playerKey )
@@ -804,17 +828,20 @@ function AF.Snapshot:saveDataToGlobal( )
     local myName = strlower( UnitName( "player" ) .. "-" .. self.Realm )
 
     -- Get the locations of the various global data related to this player
-    local tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot = AF.findGlobals( self, myName )
+--    local tDoDeletions, tMyRealmGroup, tMySnapshot, tMasterSnapshot = AF.findGlobals( self, myName )
+    local tDoDeletions, tMyRealmGroup, tMasterSnapshot = AF.findGlobals( self, myName )
 
     -- Save all the data related to this player into the Addon Globals
     tDoDeletions[myName]    = self:isDeletionActive( )
     tMyRealmGroup.fullSync  = self:isFullSyncActive( )
     tMyRealmGroup.realmList = self.tConnectedRealms
+--[[
     wipe( tMySnapshot )
     for playerKey, _ in pairs( self.tFriends ) do
         tblinsert( tMySnapshot, playerKey )
     end
-    wipe( tMasterSnapshot )
+]]--
+wipe( tMasterSnapshot )
     for playerKey, _ in pairs( self.tMasterFriends ) do
         tblinsert( tMasterSnapshot, playerKey )
     end

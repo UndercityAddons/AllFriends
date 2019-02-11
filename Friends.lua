@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-10 14:37]
+     Last Modified       :     [2019-02-11 10:55]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -54,6 +54,13 @@ end
 
 --- Class public method "getFriends"
 -- Returns a table representing all the friends currently in the friend list.
+-- The table is numerically indexed and takes the form:
+--   tFriendList = {
+--      playerObj1,     -- [1]
+--      playerObj2,     -- [2]
+--        ...
+--      playerObjx      -- [x]
+--   }
 -- return   tFriendList  Table representing all friends currently in the friend list
 function AF.Friends:getFriends( )
     local tFriendList = {}
@@ -64,11 +71,33 @@ function AF.Friends:getFriends( )
         friendInfo = C_FriendList.GetFriendInfoByIndex( i )
         playerName = strlower( strgsub( friendInfo.name, "-.+$", "" ) )
         _, playerRealm = AF:getLocalizedRealm( friendInfo.name )
-        debug:info( "Retrieved %s-%s (%d of %d) from friend-list", playerName, playerRealm, i, numServerFriends )
-        debug:debug( "Requesting new object for [%s]", playerName .. "-" .. playerRealm )
+        debug:debug( "Retrieved %s-%s (%d of %d) from friend-list", playerName, playerRealm, i, numServerFriends )
         tFriendList[i] = AF.Player:new( playerName .. "-" .. playerRealm )
-        debug:debug( "tFriendList[%d]  name=%s realm=%s local=%s",
-                     i, tFriendList[i]:getName(), tFriendList[i]:getRealm(), AF._tostring( tFriendList[i]:isLocal() ) )
+    end
+    debug:debug( "Done retrieving friends - returning [%s]", AF._tostring( tFriendList ) )
+    return tFriendList
+end
+
+
+--- Class public method "getFriendsAsNames"
+-- Returns a table representing all the friends currently in the friend list.
+-- The table takes the form:
+--   tFriendList = {
+--      [ "playername-playerrealm"]     = 1,
+--      [ "anotherplayer-anotherrealm"] = 2,
+--   }
+-- return   tFriendList  Table representing all friends currently in the friend list
+function AF.Friends:getFriendsAsNames( )
+    local tFriendList = {}
+    local numServerFriends = C_FriendList.GetNumFriends( )
+    debug:debug( "Friend list contains %d friends", numServerFriends )
+    local _, friendInfo, playerName, playerRealm
+    for i = 1, numServerFriends do
+        friendInfo = C_FriendList.GetFriendInfoByIndex( i )
+        playerName = strlower( strgsub( friendInfo.name, "-.+$", "" ) )
+        _, playerRealm = AF:getLocalizedRealm( friendInfo.name )
+        debug:debug( "Retrieved %s-%s (%d of %d) from friend-list", playerName, playerRealm, i, numServerFriends )
+        tFriendList[ playerName .. "-" .. playerRealm ] = i
     end
     debug:debug( "Done retrieving friends - returning [%s]", AF._tostring( tFriendList ) )
     return tFriendList
@@ -171,9 +200,7 @@ function AF.Friends:addFriend( playerObj )
         playerKey = playerObj:getKey( )
     end
 
-    if( self:findFriend( playerObj ) ) then
-        debug:debug( "Player %s already present in friend list.", playerKey )
-    else
+    if( not self:findFriend( playerObj ) ) then
         C_FriendList.AddFriend( playerKey )
         debug:info( "Added %s to friend list.", playerKey )
     end

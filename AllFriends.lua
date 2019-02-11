@@ -1,8 +1,7 @@
---[[
-     File Name           :     AllFriends.lua
+--[[ File Name           :     AllFriends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-10 15:59]
+     Last Modified       :     [2019-02-11 11:00]
      Description         :     WoW addon that automatically synchronizes your friends-lists across multiple characters
 --]]
 
@@ -27,16 +26,6 @@ local strupper          = string.upper
 local strsub            = string.sub
 
 
--- Colour definitions for slashcommand output
-local ARG           = AF.DBG_YELLOW
-local COMMAND       = AF.DBG_LIME
-local OPTION        = AF.DBG_CYAN
-local OPTION_OFF    = AF.DBG_MAGENTA
-local OPTION_ON     = AF.DBG_LIME
-local REGULAR       = AF.DBG_REGULAR
-local VALUE         = AF.DBG_YELLOW
-
-
 --- Addon local function "outputFriendSnapshotList"
 -- Dumps the contents of the current snapshot to debugging output.
 local function outputFriendSnapshotList( snapshotObj, whichSnap )
@@ -47,7 +36,8 @@ end
 --- Addon local function "outputFriendSnapshotList"
 -- Displays a colourized count of friends in the current snapshot.
 local function outputFriendSnapshotCount( snapshotObj, whichSnap )
-    debug:always( "Friends in player-snapshot: %s%d%s", VALUE, snapshotObj:countFriends( whichSnap ), REGULAR )
+    debug:always( "Friends in %s%s%s-snapshot: %s%d%s", CLR_OPT, whichSnap, CLR_REG,
+    CLR_VALUE, snapshotObj:countFriends( whichSnap ), CLR_REG )
 end
 
 
@@ -55,9 +45,9 @@ end
 -- Displays a colourized indicator of the current friend-deletion setting.
 local function outputDeleteStatus( snapshotObj )
     if( snapshotObj:isDeletionActive( ) ) then
-        debug:always( "Stale friend deletion: %senabled%s", OPTION_ON, REGULAR )
+        debug:always( "Stale friend deletion: %senabled%s", CLR_OPT_ON, CLR_REG )
     else
-        debug:always( "Stale friend deletion: %sdisabled%s", OPTION_OFF, REGULAR )
+        debug:always( "Stale friend deletion: %sdisabled%s", CLR_OPT_OFF, CLR_REG )
     end
 end
 
@@ -65,7 +55,7 @@ end
 --- Addon local function "outputDebuggingStatus"
 -- Displays a colourized indicator of the current debugging severity level.
 local function outputDebuggingStatus( debugObj )
-    debug:always( "Debug level is currently %s%s%s.", VALUE, strupper( debugObj:getLevel( ) ), REGULAR )
+    debug:always( "Debug level is currently %s%s%s.", CLR_VALUE, strupper( debugObj:getLevel( ) ), CLR_REG )
 end
 
 
@@ -73,9 +63,9 @@ end
 -- Displays a colourized indicator of the current full-sync setting.
 local function outputFullSyncStatus( snapshotObj )
     if( snapshotObj:isFullSyncActive( ) ) then
-        debug:always( "Full-Sync (current and connected realms): %sON%s", OPTION_ON, REGULAR )
+        debug:always( "Full-Sync (current and connected realms): %sON%s", CLR_OPT_ON, CLR_REG )
     else
-        debug:always( "Full-Sync (current and connected realms): %sOFF%s", OPTION_OFF, REGULAR )
+        debug:always( "Full-Sync (current and connected realms): %sOFF%s", CLR_OPT_OFF, CLR_REG )
     end
 end
 
@@ -111,12 +101,12 @@ local function slashCommandHandler( msg, editbox )
 
     -- Show the contents of the current snapshot
     elseif( msg == "friends" ) then
+            outputFriendSnapshotCount( snapshot, "player" )
             outputFriendSnapshotList( snapshot, "player" )
             debug:always( "--------------------" )
-            outputFriendSnapshotCount( snapshot, "player" )
+            outputFriendSnapshotCount( snapshot, "master" )
             outputFriendSnapshotList( snapshot, "master" )
             debug:always( "--------------------" )
-            outputFriendSnapshotCount( snapshot, "master" )
         return
 
     -- Control whether the addon deletes stale friends from the friend list or not
@@ -154,25 +144,26 @@ local function slashCommandHandler( msg, editbox )
 
     -- Unrecognized slashcommand - display help (with fancy colours!)
     debug:always( "%s/af %sstatus%s",
-                   COMMAND, OPTION, REGULAR )
+                   CLR_CMD, CLR_OPT, CLR_REG )
     debug:always( "     (Displays current settings/status)" )
     debug:always( "" )
     debug:always( "%s/af %sdebug %s<%sdebug%s, %sinfo%s, %swarn%s, %serror%s, %salways%s>",
-                   COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
+                   CLR_CMD, CLR_OPT, CLR_REG, CLR_ARG,CLR_REG, CLR_ARG,CLR_REG,
+                   CLR_ARG,CLR_REG, CLR_ARG,CLR_REG, CLR_ARG,CLR_REG )
     debug:always( "     (Sets the debugging output severity)" )
     debug:always( "" )
     debug:always( "%s/af %sdelete %s<%son%s, %soff%s, %sshow%s>",
-                   COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
+                   CLR_CMD, CLR_OPT, CLR_REG, CLR_ARG,CLR_REG, CLR_ARG,CLR_REG, CLR_ARG,CLR_REG )
     debug:always( "     (Show or set whether the addon deletes stale friends)" )
     debug:always( "" )
     debug:always( "%s/af %sfullsync %s<%son%s, %soff%s, %sshow%s>",
-                   COMMAND, OPTION, REGULAR, ARG,REGULAR, ARG,REGULAR, ARG,REGULAR )
+                   CLR_CMD, CLR_OPT, CLR_REG, CLR_ARG,CLR_REG, CLR_ARG,CLR_REG, CLR_ARG,CLR_REG )
     debug:always( "     (Show or set whether the addon ignores the 'delete' option" )
     debug:always( "      and instead deletes ALL stale friends for the current" )
     debug:always( "      and all connected realms" )
     debug:always( "" )
     debug:always( "%s/af %sfriends%s",
-                   COMMAND, OPTION, REGULAR )
+                   CLR_CMD, CLR_OPT, CLR_REG )
     debug:always( "     (Display contents of the current friends snapshot)" )
     return
 end
@@ -198,7 +189,6 @@ local function initialOnUpdateHandler( self, elapsed )
         frame:SetScript( "OnUpdate", nil )
         debug:debug( "OnUpdate disabled." )
         snapshot:restoreFriendsSnapshot( friendList )   -- Push snapshot contents into friend-list
-        snapshot:refreshFriendsSnapshot( friendList )   -- Refresh snapshot in-case addon never run before
         frame:RegisterEvent( "PLAYER_LOGOUT" )
 
         -- For FRIENDLIST_UPDATE, delay a bit before registering the event to
@@ -206,6 +196,7 @@ local function initialOnUpdateHandler( self, elapsed )
         -- help to avoid unnecessary triggering of new snapshots caused by the
         -- restore changes.
         C_Timer.After( 10, function()
+            snapshot:refreshFriendsSnapshot( friendList )   -- Force an initial snapshot refresh
             frame:RegisterEvent( "FRIENDLIST_UPDATE" )
             debug:debug( "Events registered." )
         end )
@@ -242,8 +233,8 @@ local function EventHandler( self, event, ... )
     -- Fires: Whenever the player logs out or the UI is reloaded, just-before
     --        SavedVariables are saved.  Fires after PLAYER_LEAVING_WORLD.
     elseif( event == "PLAYER_LOGOUT" ) then
-        debug:saveDataToGlobal( )
         snapshot:saveDataToGlobal( )
+        debug:saveDataToGlobal( )
 
     -- Fires whenever: - You login
     --                 - Opening friends window (twice?)
@@ -253,7 +244,7 @@ local function EventHandler( self, event, ... )
     --                 - Friends come online or go offline
     elseif( event == "FRIENDLIST_UPDATE" ) then
         snapshot:refreshFriendsSnapshot( friendList )
-        debug:debug( "Took snapshot of friends-list - contains %d friends.", snapshot:countFriends( "player" ) )
+        debug:debug( "Took snapshot of friends-list - contains %d friends.", snapshot:countFriends( "master" ) )
 
     -- Catchall for any registered but unhandled events
     else

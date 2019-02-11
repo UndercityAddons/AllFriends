@@ -2,7 +2,7 @@
      File Name           :     Debugging.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-09 14:17]
+     Last Modified       :     [2019-02-10 20:28]
      Description         :     Debugging facility for the WoW addon AllFriends
 --]]
 
@@ -54,24 +54,44 @@ ERROR   = "ERROR"   -- Errors that will break things
 ALWAYS  = "ALWAYS"  -- Output that should be shown unconditionally
 
 
--- COLOR CODES (can be used within debug messages)
-AF.DBG_BLACK   = "\124cff000000"
-AF.DBG_MAROON  = "\124cff800000"
-AF.DBG_GREEN   = "\124cff008000"
-AF.DBG_OLIVE   = "\124cff808000"
-AF.DBG_NAVY    = "\124cff000080"
-AF.DBG_PURPLE  = "\124cff800080"
-AF.DBG_TEAL    = "\124cff008080"
-AF.DBG_SILVER  = "\124cffc0c0c0"
-AF.DBG_GRAY    = "\124cff808080"
-AF.DBG_RED     = "\124cffff0000"
-AF.DBG_LIME    = "\124cff00ff00"
-AF.DBG_YELLOW  = "\124cffffff00"
-AF.DBG_BLUE    = "\124cff0000ff"
-AF.DBG_MAGENTA = "\124cffff00ff"
-AF.DBG_CYAN    = "\124cff00ffff"
-AF.DBG_WHITE   = "\124cffffffff"
-AF.DBG_REGULAR = "\124r"
+-- Standardized colour codes
+AF.CLR_BLACK   = "\124cff000000"
+AF.CLR_MAROON  = "\124cff800000"
+AF.CLR_GREEN   = "\124cff008000"
+AF.CLR_OLIVE   = "\124cff808000"
+AF.CLR_NAVY    = "\124cff000080"
+AF.CLR_PURPLE  = "\124cff800080"
+AF.CLR_TEAL    = "\124cff008080"
+AF.CLR_SILVER  = "\124cffc0c0c0"
+AF.CLR_GRAY    = "\124cff808080"
+AF.CLR_RED     = "\124cffff0000"
+AF.CLR_LIME    = "\124cff00ff00"
+AF.CLR_YELLOW  = "\124cffffff00"
+AF.CLR_BLUE    = "\124cff0000ff"
+AF.CLR_MAGENTA = "\124cffff00ff"
+AF.CLR_CYAN    = "\124cff00ffff"
+AF.CLR_WHITE   = "\124cffffffff"
+AF.CLR_REGULAR = "\124r"
+
+-- Non-standard colour codes
+AF.CLR_MUDDY_RED     = "\124cffcd5554"
+AF.CLR_ALGAE_GREEN   = "\124cff00c07f"
+AF.CLR_HONEY         = "\124cffcdae1d"
+AF.CLR_DEEP_ORANGE   = "\124cffbe4f0c"
+AF.CLR_ORANGE_YELLOW = "\124cffff5a09"
+AF.CLR_MISTY_GRAPE   = "\124cffaa80ff"
+
+-- Some frequently used colours (usable debug msgs and chat output)
+CLR_PREFIX   = AF.CLR_MISTY_GRAPE
+CLR_REG      = AF.CLR_REGULAR
+CLR_FUNCNAME = AF.CLR_ALGAE_GREEN
+CLR_ARG      = AF.CLR_YELLOW
+CLR_CMD      = AF.CLR_LIME
+CLR_OPT      = AF.CLR_CYAN
+CLR_OPT_OFF  = AF.CLR_MAGENTA
+CLR_OPT_ON   = AF.CLR_LIME
+CLR_VALUE    = AF.CLR_YELLOW
+
 
 
 -- Class table
@@ -108,9 +128,9 @@ local function logMsg( level, format, ... )
 
     local prefix
     if( level ~= TRACE and level ~= DEBUG and level ~= INFO ) then
-        prefix = strformat( "%s%s%s", AF.DBG_MAGENTA, addonName, AF.DBG_REGULAR )
+        prefix = strformat( "%s%s%s", CLR_PREFIX, addonName, CLR_REG )
     else
-        prefix = strformat( "%s%s.lua%s", AF.DBG_MAGENTA, addonName, AF.DBG_REGULAR )
+        prefix = strformat( "%s%s.lua%s", CLR_PREFIX, addonName, CLR_REG )
         local fileName = ""
         local funcName = ""
             if( strfind( debugstack( 3, 2, 0 ), "`.+'" ) ~= nil ) then
@@ -121,9 +141,9 @@ local function logMsg( level, format, ... )
             end
         if( funcName ~= "" ) then
             prefix = strformat( "%s%s%s\\%s%s()%s",
-                                AF.DBG_MAGENTA, fileName, AF.DBG_REGULAR, AF.DBG_YELLOW, funcName, AF.DBG_REGULAR )
+                                CLR_PREFIX, fileName, CLR_REG, CLR_FUNCNAME, funcName, CLR_REG )
         else
-            prefix = strformat( "%s%s\\<%smain code%s>", prefix, AF.DBG_REGULAR, AF.DBG_YELLOW, AF.DBG_REGULAR )
+            prefix = strformat( "%s%s\\<%smain code%s>", prefix, CLR_REG, CLR_FUNCNAME, CLR_REG )
         end
     end
 

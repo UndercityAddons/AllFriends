@@ -2,7 +2,7 @@
      File Name           :     Utils.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-09 02:12]
+     Last Modified       :     [2019-02-11 00:56]
      Description         :     General / miscellaneous utilities for the WoW addon 'AllFriends'
 --]]
 
@@ -197,13 +197,12 @@ end
 -- @return  false, "unknown"                Specified realm non-local and not connected
 function AF:getLocalizedRealm( nameAndRealm )
 
-    debug:debug( "Received arg [%s]", nameAndRealm )
     -- Get the name of the local (i.e. current) realm
     local localRealm = AF:getCurrentRealm( )
 
     -- Handle cases where specified realm is nil or empty
     if( nameAndRealm == nil or nameAndRealm == "" ) then
-        debug:info( "Specified name/realm is nil or empty - not getting localized realm." )
+        debug:debug( "Specified name/realm is nil or empty, treating as local." )
         return true, localRealm
     else
         nameAndRealm = strlower( nameAndRealm )
@@ -219,7 +218,6 @@ function AF:getLocalizedRealm( nameAndRealm )
     else
         realmName = localRealm
     end
-    debug:debug( "Specified realm: %s", realmName )
 
     -- Handle case where specified realm equals the local realm
     if( realmName == localRealm ) then
@@ -227,15 +225,12 @@ function AF:getLocalizedRealm( nameAndRealm )
         return true, localRealm
     end
 
-    local tConnectedRealmList, numConnectedRealmList = AF.getConnectedRealms( )
-    debug:debug( "tConnectedRealmList: %d realms [%s]", numConnectedRealmList, AF._tostring( tConnectedRealmList ) )
-
     if( AF:isRealmConnected( realmName ) == true ) then
-        debug:info( "Realm %s different than local realm, but is connected.", realmName )
+        debug:debug( "Realm %s different than local realm, but is connected.", realmName )
         return false, realmName
     end
 
-    debug:info( "Realm %s not connected to local realm.", realmName )
+    debug:debug( "Realm %s not connected to local realm.", realmName )
     return false, "unknown"
 end
 
