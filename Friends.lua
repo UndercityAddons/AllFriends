@@ -2,7 +2,7 @@
      File Name           :     Friends.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-11 10:55]
+     Last Modified       :     [2019-02-11 22:07]
      Description         :     Friends class for the WoW addon AllFriends
 --]]
 
@@ -218,7 +218,7 @@ end
 function AF.Friends:removeFriend( playerObj )
 
     -- Parameter validation
-    if( not playerObj ) then
+    if( not pcall( function( ) return playerObj:chkType( AF.Player.class ) end ) ) then
         debug:warn( "Invalid player object - can't remove from friend list." )
         return false
     end

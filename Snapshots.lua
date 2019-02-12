@@ -2,7 +2,7 @@
      File Name           :     Snapshots.lua
      Created By          :     tubiakou
      Creation Date       :     [2019-01-07 01:28]
-     Last Modified       :     [2019-02-11 11:55]
+     Last Modified       :     [2019-02-12 01:13]
      Description         :     Snapshots class for the WoW addon AllFriends
 
 This module of AllFriends implements a Snapshot class, responsible for all
@@ -49,6 +49,7 @@ AF.Snapshot = {
     snapshotRestored  = false,      -- Has a snapshot-restore completed
     doDeletions       = false,      -- Should the addon delete stale friends
     fullSync          = false,      -- Ignore doDeletions (turn TRUE for all currently connected realms)
+    firstRun          = false,      -- Flag that the addon has never run before
 }
 AF.Snapshot_mt          = {}            -- Metatable
 AF.Snapshot_mt.__index  = AF.Snapshot   -- Look in the class for undefined methods
@@ -271,8 +272,23 @@ function AF.findGlobals( self, playerKey )
     local tDoDeletions
     local tMasterSnapshot
 
+    -- If the addon hasn't run before then flag this, since later on when
+    -- first refreshing the master-snapshot, special steps will need to be
+    -- taken treat the player's friend list as authoritative.
+    if( AllFriendsData == nil or  AllFriendsData.RealmGroups == nil ) then
+        self.firstRun = true
+        debug:always( "%sLooks like this is the first time %s%s%s has run.%s",
+        AF.CLR_ORANGE_YELLOW, CLR_PREFIX, addonName, AF.CLR_ORANGE_YELLOW, CLR_REG )
+
+        debug:always( "%sThis friend list will be your starting point.%s",
+        AF.CLR_ORANGE_YELLOW, CLR_REG )
+    else
+        debug:debug( "%sNot the first time running - normal mode of operation.%s",
+        AF.CLR_ORANGE_YELLOW, CLR_REG )
+    end
+
     -- If the addon hasn't run before the the addon's SavedVariables file will
-    -- not exist.  The corresponding global data structure will also not exist.
+    -- not exist.  The corresponding global data structures will also not exist.
     -- Initialize everything non-specific to individual realm-groups or players
     -- that might be missing before we proceed.  (Data for initial realm-groups
     -- and players are initialized below, when doing per-group and per-player
@@ -642,18 +658,7 @@ function AF.Snapshot:restoreFriendsSnapshot( friendListObj )
     end
 
     -- Iterate the snapshot and add all missing friends into the friend list.
-    -- If a player-snapshot contains any friends, then use it; otherwise iterate
-    -- through the master snapshot for that realm-group.
-    local sourceSnap
-    if( self:countFriends( "master" ) > 0 ) then
-        sourceSnap = self.tMasterFriends
-        debug:debug( "Master snapshot has friends, using it." )
-    else
-        sourceSnap = self.trFriends
-        debug:debug( "Master snapshot is empty, using player snapshot instead." )
-    end
-
-    for _, playerObj in pairs( sourceSnap ) do
+    for _, playerObj in pairs( self.tMasterFriends ) do
         friendListObj:addFriend( playerObj )
     end
 
@@ -669,6 +674,7 @@ function AF.Snapshot:restoreFriendsSnapshot( friendListObj )
     for playerKey, action in pairs( tDiffs ) do
         if( action == "added" ) then
             if( self:isFullSyncActive( ) or self:isDeletionActive() ) then
+                debug:debug( "Removing friend %s from the friend List", playerKey )
                 friendListObj:removeFriend( AF.Player:new( playerKey ) )
                 debug:info( "%s stale - removed from friend list.", playerKey )
             else
@@ -676,6 +682,21 @@ function AF.Snapshot:restoreFriendsSnapshot( friendListObj )
                 debug:info( "%s stale - added to player-specific overlay snapshot.", playerKey )
             end
         end
+    end
+
+    -- As a very-special case, if this is the 1st time the addon has been run,
+    -- then the current friend list will have been deemed entirely "stale" and
+    -- populated into the player-specific overlay snapshot for preservation.  In
+    -- this case, however, the friend-list should be considered authoritative
+    -- and instead loaded into the master snapshot.  Fix this by swapping the
+    -- two snapshots.
+    if( self.firstRun ) then
+        self.tMasterFriends = self.tFriends
+        self.numMasterFriends = self.numFriends
+        self.tFriends = {}
+        self.numFriends = 0
+        self.firstRun = false
+        debug:info( "Very first time running.  This friend list used as the base going forward." )
     end
 
     -- Once restore is completed, re-register this event (only if it previously
